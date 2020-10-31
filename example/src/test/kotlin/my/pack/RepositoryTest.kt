@@ -61,6 +61,19 @@ class RepositoryTest {
     }
 
     @Test
+    fun `rollback on exception`(){
+        try {
+            db.transaction {
+                iphoneRepository.save(phone)
+                error("")
+            }
+        }catch (ex:IllegalStateException){}
+
+        val phones = db.transaction(readOnly = true) { iphoneRepository.findAll() }
+        assert(phones.isEmpty())
+    }
+
+    @Test
     fun save() {
 
         db.transaction {

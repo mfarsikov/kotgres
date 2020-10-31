@@ -63,7 +63,7 @@ fun main() {
 
     println("errors: ${db.check()}")
 
-    db.transaction(readOnly = true, IsolationLevel.SERIALIZABLE) {
+    db.transaction {
 
         iphoneRepository.findAll()
 

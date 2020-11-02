@@ -4,6 +4,7 @@ import com.squareup.kotlinpoet.ClassName
 import com.squareup.kotlinpoet.FileSpec
 import com.squareup.kotlinpoet.FunSpec
 import com.squareup.kotlinpoet.KModifier
+import com.squareup.kotlinpoet.MemberName
 import com.squareup.kotlinpoet.ParameterSpec
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.PropertySpec
@@ -26,9 +27,9 @@ import postgres.json.model.klass.Nullability
 import postgres.json.model.klass.QualifiedName
 import postgres.json.model.klass.Type
 import postgres.json.model.repository.ObjectConstructor
-import postgres.json.model.repository.QueryMethod2
+import postgres.json.model.repository.QueryMethod
 import postgres.json.model.repository.Repo
-import postgres.json.parser.UNIT
+import postgres.json.parser.KotlinType
 import javax.annotation.Generated
 
 
@@ -56,7 +57,7 @@ fun generateRepository(repo: Repo): FileSpec {
 }
 
 private fun TypeSpecBuilder.generateCustomSelectFunction(
-    queryMethod: QueryMethod2,
+    queryMethod: QueryMethod,
     repo: Repo
 ) {
     addFunction(queryMethod.name) {
@@ -64,7 +65,7 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
         returns(queryMethod.returnType.toTypeName())
         addParameters(queryMethod.queryParameters.map { param ->
             ParameterSpec(
-                name = param.name,
+                name = param.path,
                 type = param.type.toTypeName()
             )
         })
@@ -73,9 +74,9 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
             addStatement("val query = %S", queryMethod.query)
             controlFlow("return connection.prepareStatement(query).use") {
                 queryMethod.queryParameters.forEachIndexed { i, param ->
-                    addStatement("it.set%L(%L, %L)", param.setterType, i + 1, param.name)
+                    addStatement("it.set%L(%L, %L)", param.setterType, i + 1, param.path)
                 }
-                if (queryMethod.returnType.klass.name != UNIT) {
+                if (queryMethod.returnType.klass.name != KotlinType.UNIT.qn) {
                     controlFlow("it.executeQuery().use") {
                         if (queryMethod.returnsCollection)
                             generateCollectionExtractor(repo)
@@ -102,7 +103,7 @@ private fun CodeBlockBuilder.generateCollectionExtractor(repo: Repo) {
 }
 
 private fun CodeBlockBuilder.generateSingleElementExtractor(
-    queryMethod: QueryMethod2,
+    queryMethod: QueryMethod,
     repo: Repo,
     returnType: Type
 ) {
@@ -150,7 +151,7 @@ private fun TypeSpecBuilder.generateFindAllFunction(repo: Repo) {
         addModifiers(KModifier.OVERRIDE)
         returns(listParametrizedBy(repo.mappedKlass.klass.name))
 
-        val entityType = repo.findAllMethod.returnType!!.typeParameters.single()
+        val entityType = repo.findAllMethod.returnType.typeParameters.single()
 
         addCode {
             addStatement("val query = %S", repo.findAllMethod.query)
@@ -184,7 +185,10 @@ private fun CodeBlockBuilder.generateConstructorCall(c: ObjectConstructor, isTop
             addStatement(")$trailingComma")
         }
         is ObjectConstructor.Extractor -> {
-            addStatement("%L = it.get%L(%S),", c.fieldName, c.resultSetGetterName, c.columnName)
+            if(c.converter == null)
+                addStatement("%L = it.get%L(%S),", c.fieldName, c.resultSetGetterName, c.columnName)
+            else
+                addStatement("%L = %M(it.get%L(%S)),", c.fieldName,MemberName(c.converter.fName.substringBeforeLast('.'), c.converter.fName.substringAfterLast('.')), c.resultSetGetterName, c.columnName)
         }
     }
 }
@@ -202,11 +206,20 @@ private fun TypeSpecBuilder.generateSaveAllFunction(repo: Repo) {
             controlFlow("connection.prepareStatement(query).use") {
                 `for`("item in items") {
                     for (param in repo.saveAllMethod.queryParameters) {
-                        addStatement(
-                            "it.set${param.setterType}(%L, item.%L)",
-                            param.position,
-                            param.path.joinToString(".")
-                        )
+                        if (param.converter != null) {
+                            addStatement(
+                                "it.set${param.setterType}(%L, %M(item.%L))",
+                                param.position,
+                                MemberName(param.converter.fName.substringBeforeLast('.'),param.converter.fName.substringAfterLast('.') ),
+                                param.path
+                            )
+                        }else{
+                            addStatement(
+                                "it.set${param.setterType}(%L, item.%L)",
+                                param.position,
+                                param.path
+                            )
+                        }
                     }
                     addStatement("it.addBatch()")
                 }

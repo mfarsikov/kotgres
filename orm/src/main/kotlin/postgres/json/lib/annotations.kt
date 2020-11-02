@@ -1,6 +1,8 @@
 package postgres.json.lib
 
 import postgres.json.model.db.PostgresType
+import kotlin.reflect.KClass
+import kotlin.reflect.KFunction
 
 @Target(AnnotationTarget.FIELD)
 annotation class Id
@@ -14,6 +16,8 @@ annotation class Table(
 annotation class Column(
     val name: String = "",
     val type: PostgresType = PostgresType.NONE,
+    val toSqlFunction: String = "",
+    val fromSqlFunction: String = ""
 )
 
 @Target(AnnotationTarget.CLASS)
@@ -24,21 +28,23 @@ annotation class PostgresRepository(
      */
     val belongsToDb: String = ""
 )
+
 @Target(AnnotationTarget.FUNCTION)
 annotation class Where(
     val value: String,
 )
+
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
 @Repeatable
 annotation class Join(
     val value: String,
 )
+
 @Target(AnnotationTarget.FUNCTION)
 annotation class Query(
     val value: String,
 )
-
 
 
 interface Repository<T> : Checkable {

@@ -1,12 +1,12 @@
 package postgres.json.mapper
 
-import postgres.json.Logger
 import postgres.json.lib.Column
 import postgres.json.lib.Id
 import postgres.json.lib.Table
 import postgres.json.lib.Where
 import postgres.json.model.db.ColumnDefinition
 import postgres.json.model.db.ColumnMapping
+import postgres.json.model.db.Converter
 import postgres.json.model.db.PostgresType
 import postgres.json.model.db.TableMapping
 import postgres.json.model.klass.Klass
@@ -16,10 +16,9 @@ import postgres.json.model.klass.QualifiedName
 import postgres.json.model.klass.Type
 import postgres.json.model.repository.ObjectConstructor
 import postgres.json.model.repository.QueryMethod
-import postgres.json.model.repository.QueryMethod2
 import postgres.json.model.repository.QueryParameter
-import postgres.json.model.repository.QueryParameter2
 import postgres.json.model.repository.Repo
+import postgres.json.parser.KotlinType
 
 // ex: `:firstName`
 val parameterPlaceholderRegex = Regex(":\\w*")
@@ -49,10 +48,11 @@ private fun objectConstructor(
     return if (klass.fields.isEmpty()) {
         val column = columns.single { it.path == path }
         ObjectConstructor.Extractor(
-            resultSetGetterName = column.column.type.toMethodName(),
+            resultSetGetterName = column.column.type.toJdbcSetterType().toJdbcSetterName(),
             columnName = column.column.name,
             fieldName = parentField,
-            converter = null
+            converter = column.fromSqlTypeConverter
+            //converterName(column.column.type.toJdbcSetterType().qn, klass.name)
         )
     } else {
         ObjectConstructor.Constructor(
@@ -73,11 +73,15 @@ private fun objectConstructor(
 fun Klass.toRepo(mapped: Klass): Repo {
     val mappedKlass = mapped.toTableMapping()
 
-    val (where, nowhere) = functions.partition { it.annotationConfigs.any { it is Where } }
+    val (withWhere, withoutWhere) = functions.partition { it.annotationConfigs.any { it is Where } }
 
     return Repo(
         superKlass = this,
-        queryMethods = nowhere.map { it.toQueryMethod(mappedKlass) } + where.map { it.toQueryMethodWhere(mappedKlass) },
+        queryMethods = withoutWhere.map { it.toQueryMethod(mappedKlass) } + withWhere.map {
+            it.toQueryMethodWhere(
+                mappedKlass
+            )
+        },
         mappedKlass = mappedKlass,
         saveAllMethod = saveAllQuery(mappedKlass),
         findAllMethod = findAllQuery(mappedKlass),
@@ -86,7 +90,7 @@ fun Klass.toRepo(mapped: Klass): Repo {
 }
 
 
-fun KlassFunction.toQueryMethodWhere(mappedKlass: TableMapping): QueryMethod2 {
+fun KlassFunction.toQueryMethodWhere(mappedKlass: TableMapping): QueryMethod {
 
     val parametersByName = parameters.associateBy { it.name }
 
@@ -109,27 +113,26 @@ fun KlassFunction.toQueryMethodWhere(mappedKlass: TableMapping): QueryMethod2 {
     val fromClause = "FROM \"${mappedKlass.name}\" "
     val whereClause = "WHERE ${where.value.replace(parameterPlaceholderRegex, "?")}"
 
-    return QueryMethod2(
+    return QueryMethod(
         name = name,
         query = listOf(selectOrDeleteClause, fromClause, whereClause).joinToString("\n"),
+        returnType = returnType,
+        returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List"),
         queryParameters = paramsOrdered.mapIndexed { i, it ->
             val postgresType = typeMappings[it.type.klass.name]
                 ?: error("cannot map to postgres type: ${it.type.klass.name}") //TODO add converter
-            QueryParameter2(
-                name = it.name,
+            QueryParameter(
+                path = it.name,
                 type = it.type,
                 position = i + 1,
-                postgresType = postgresType,
                 setterType = postgresType.toMethodName(),
                 converter = null
             )
         },
-        returnType = returnType,
-        returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List"),
     )
 }
 
-fun KlassFunction.toQueryMethod(mappedKlass: TableMapping): QueryMethod2 {
+fun KlassFunction.toQueryMethod(mappedKlass: TableMapping): QueryMethod {
 
     val columnsByFieldName = mappedKlass.columns.associateBy { it.path.last() }
 
@@ -156,15 +159,14 @@ fun KlassFunction.toQueryMethod(mappedKlass: TableMapping): QueryMethod2 {
         WHERE ${whereColumnsByParameters.values.joinToString(" AND ") { "\"${it.column.name}\" = ?" }}
     """.trimIndent()
 
-    return QueryMethod2(
+    return QueryMethod(
         name = name,
         query = listOf(selectOrDelete, from, whereClause).joinToString("\n"),
         queryParameters = whereColumnsByParameters.values.mapIndexed { i, c ->
-            QueryParameter2(
-                name = parameters[i].name,
-                type = parameters[i].type,
+            QueryParameter(
+                path = parameters[i].name,
+                type = c.type,
                 position = i + 1,
-                postgresType = c.column.type,
                 setterType = c.column.type.toMethodName(),
                 converter = null,
             )
@@ -193,18 +195,28 @@ private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
     val parameters = mappedKlass.columns.mapIndexed { i, it ->
         QueryParameter(
             position = i + 1,
-            type = it.column.type,
-            converter = null,
-            setterType = it.column.type.toMethodName(),
-            path = it.path,
+            type = it.type,
+            converter = it.toSqlTypeConverter,
+            setterType = it.column.type.toJdbcSetterType().toJdbcSetterName(),
+            path = it.path.joinToString("."),
         )
     }
     return QueryMethod(
         name = "saveAll",
         query = query,
         queryParameters = parameters,
-        returnType = null,
+        returnType = Type(Klass(KotlinType.UNIT.qn)),
+        returnsCollection = false,
     )
+}
+
+private fun converterName(from: QualifiedName, to: QualifiedName): String? {
+    if (from == to) return null
+    return when (from to to){
+        KotlinType.LOCAL_DATE.qn to SqlType.DATE.qualifiedName -> "postgres.json.lib.toDate"
+        SqlType.DATE.qualifiedName to KotlinType.LOCAL_DATE.qn -> "postgres.json.lib.toLocalDate"
+        else -> error("No converter from $from to $to")
+    }
 }
 
 private fun deleteAllQuery(mappedKlass: TableMapping): QueryMethod {
@@ -214,7 +226,8 @@ private fun deleteAllQuery(mappedKlass: TableMapping): QueryMethod {
         name = "saveAll",
         query = delete,
         queryParameters = emptyList(),
-        returnType = null,
+        returnType = Type(Klass(KotlinType.UNIT.qn)),
+        returnsCollection = false,
     )
 }
 
@@ -233,14 +246,57 @@ private fun findAllQuery(mappedKlass: TableMapping): QueryMethod {
             klass = Klass(name = QualifiedName("kotlin.collections", "List")),
             typeParameters = listOf(Type(mappedKlass.klass)),
         ),
+        returnsCollection = true
     )
 }
 
+private fun PostgresType.toJdbcSetterType(): KotlinType = when (this) {
+    PostgresType.BOOLEAN -> KotlinType.BOOLEAN
+    PostgresType.DATE -> KotlinType.LOCAL_DATE
+    PostgresType.DOUBLE -> KotlinType.DOUBLE
+    PostgresType.INTEGER -> KotlinType.INT
+    PostgresType.JSONB -> KotlinType.STRING
+    PostgresType.NUMERIC -> KotlinType.BIG_DECIMAL
+    PostgresType.TEXT -> KotlinType.STRING
+    PostgresType.REAL -> KotlinType.FLOAT
+    PostgresType.BIGINT -> KotlinType.LONG
+    PostgresType.MONEY -> KotlinType.STRING
+    PostgresType.TIMESTAMP_WITH_TIMEZONE -> KotlinType.STRING
+    PostgresType.TIMESTAMP -> KotlinType.STRING
+    PostgresType.BYTEA -> KotlinType.BYTE_ARRAY
+    PostgresType.UUID -> KotlinType.STRING
+    //TODO
+    else -> error("Unexpected postgres type: $this")
+}
+
+private fun KotlinType.toJdbcSetterName(): String = when (this) {
+    KotlinType.BOOLEAN -> "Boolean"
+    KotlinType.DOUBLE -> "Double"
+    KotlinType.INT -> "Int"
+    KotlinType.BIG_DECIMAL -> "BigDecimal"
+    KotlinType.STRING -> "String"
+    KotlinType.FLOAT -> "Float"
+    KotlinType.LONG -> "Long"
+    KotlinType.LOCAL_DATE -> "Date"
+    //TODO
+    else -> error("Unexpected postgres type: $this")
+}
+
 private fun PostgresType.toMethodName(): String = when (this) {
-    PostgresType.TEXT -> "String"
+    PostgresType.BOOLEAN -> "Boolean"
+    PostgresType.DATE -> "Date"
+    PostgresType.DOUBLE -> "Double"
     PostgresType.INTEGER -> "Int"
     PostgresType.JSONB -> "String"
-    PostgresType.DATE -> "Date"
+    PostgresType.NUMERIC -> "BigDecimal"
+    PostgresType.TEXT -> "String"
+    PostgresType.REAL -> "Float"
+    PostgresType.BIGINT -> "Long"
+    PostgresType.MONEY -> "String" //Convert?
+    PostgresType.TIMESTAMP_WITH_TIMEZONE -> "Timestamp"//Convert?
+    PostgresType.TIMESTAMP -> "Timestamp"//Convert?
+    PostgresType.BYTEA -> "Blob"
+    PostgresType.UUID -> "String"
     //TODO
     else -> error("Unexpected postgres type: $this")
 }
@@ -255,8 +311,7 @@ private fun flattenToColumns(klass: Klass, path: List<String> = emptyList()): Li
 
         when {
             colType == null && field.type.klass.fields.isEmpty() -> {
-                Logger.error("Cannot define type for field: ${klass.name}.${path.joinToString(".")} of type ${field.type}. Specify type implicitly in @Column")
-                emptyList()
+                error("Cannot define PostgresType for field: ${klass.name}.${path.joinToString(".")} of type ${field.type}. Specify type implicitly in @Column")
             }
             colType != null -> {
                 val colName = columnAnnotation?.name?.takeIf { it.isNotEmpty() } ?: field.name.camelToSnakeCase()
@@ -264,12 +319,14 @@ private fun flattenToColumns(klass: Klass, path: List<String> = emptyList()): Li
                     ColumnMapping(
                         path = path + field.name,
                         column = ColumnDefinition(
-                            colName,
-                            field.type.nullability == Nullability.NULLABLE,
-                            colType,
+                            name = colName,
+                            nullable = field.type.nullability == Nullability.NULLABLE,
+                            type = colType,
                             isId = field.annotations.filterIsInstance<Id>().singleOrNull()?.let { true } ?: false
                         ),
-                        type = field.type
+                        type = field.type,
+                        toSqlTypeConverter = field.annotations.filterIsInstance<Column>().singleOrNull()?.takeIf { it.toSqlFunction.isNotEmpty() }?.let { Converter(it.toSqlFunction) },
+                        fromSqlTypeConverter = field.annotations.filterIsInstance<Column>().singleOrNull()?.takeIf { it.fromSqlFunction.isNotEmpty() }?.let { Converter(it.fromSqlFunction) },
                     )
                 )
             }
@@ -285,11 +342,18 @@ private val typeMappings = mapOf(
     QualifiedName(pkg = "kotlin", name = "Double") to PostgresType.DOUBLE,
     QualifiedName(pkg = "kotlin", name = "Float") to PostgresType.REAL,
     QualifiedName(pkg = "kotlin", name = "Boolean") to PostgresType.BOOLEAN,
+    QualifiedName(pkg = "kotlin", name = "ByteArray") to PostgresType.BYTEA,
+    QualifiedName(pkg = "java.math", name = "BigDecimal") to PostgresType.NUMERIC,
     QualifiedName(pkg = "java.util", name = "UUID") to PostgresType.UUID,
-    QualifiedName(pkg = "java.time", name = "Instant") to PostgresType.UUID,
+    QualifiedName(pkg = "java.time", name = "Instant") to PostgresType.TIMESTAMP_WITH_TIMEZONE,//TODO with timezone
     QualifiedName(pkg = "java.time", name = "LocalDate") to PostgresType.DATE,
     QualifiedName(pkg = "java.time", name = "LocalTime") to PostgresType.TIME,
-    //QualifiedName(pkg = "java.time", name = "LocalDateTime") to "timestamp", TODO use date + time?
+    QualifiedName(pkg = "java.time", name = "LocalDateTime") to PostgresType.TIMESTAMP,
     QualifiedName(pkg = "java.time", name = "ZonedDateTime") to PostgresType.TIMESTAMP_WITH_TIMEZONE,
     //QualifiedName(pkg = "java.time", name = "OffsetDateTime") to "timestamp with time zone",TODO?
 )
+
+enum class SqlType(val qualifiedName: QualifiedName){
+    DATE(QualifiedName("java.sql","Date")),
+    ;
+}

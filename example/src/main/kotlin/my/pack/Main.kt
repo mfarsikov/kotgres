@@ -1,17 +1,16 @@
 package my.pack
 
-import com.zaxxer.hikari.HikariConfig
-import com.zaxxer.hikari.HikariDataSource
-import org.flywaydb.core.Flyway
 import postgres.json.lib.Column
 import postgres.json.lib.Id
-import postgres.json.lib.IsolationLevel
 import postgres.json.lib.PostgresRepository
 import postgres.json.lib.Repository
 import postgres.json.lib.Table
 import postgres.json.lib.Where
+import postgres.json.lib.toDate
 import postgres.json.model.db.PostgresType
-import javax.sql.DataSource
+import java.sql.Date
+import java.time.LocalDate
+import kotlin.reflect.KFunction
 
 @Table
 data class Iphone(
@@ -19,7 +18,10 @@ data class Iphone(
     val id: String,
     val name: String,
     val spec: Spec,
-    val version: Int
+    val version: Int,
+    val bool: Boolean,
+    @Column(name = "date", PostgresType.DATE, toSqlFunction = "postgres.json.lib.toDate", fromSqlFunction = "postgres.json.lib.toLocalDate")
+    val date: LocalDate,
 )
 
 data class Spec(
@@ -47,49 +49,4 @@ interface IphoneRepository : Repository<Iphone> {
     @Where("cap_city = :capacity and version >= :v")
     fun findByCapacityAndVersion(capacity: String, v: Int): List<Iphone>
 
-}
-
-fun main() {
-    val ds: DataSource = HikariDataSource(HikariConfig().apply {
-        jdbcUrl = "jdbc:postgresql://localhost/postgres?user=postgres&password=postgres"
-        username = "postgres"
-    })
-
-    val message = Flyway.configure().dataSource(ds).load().migrate()
-    println("migrations executed: ${message.migrationsExecuted}")
-    println("warnings: ${message.warnings}")
-
-    val db = DB(ds)
-
-    println("errors: ${db.check()}")
-
-    db.transaction {
-
-        iphoneRepository.findAll()
-
-        iphoneRepository.saveAll(
-            listOf(
-                Iphone(
-                    id = "rst2",
-                    name = "rst",
-                    spec = Spec(
-                        proc = "rst",
-                        battery = Battery(
-                            capacity = "rst",
-                            longivity = "rst"
-                        )
-                    ),
-                    version = 10
-                )
-            )
-        )
-
-        println("all: ${iphoneRepository.findAll()}")
-        println("by ID: ${iphoneRepository.findById("rst")}")
-        println(iphoneRepository.findById("rst2"))
-    }
-
-    val res = db.transaction(readOnly = true) { iphoneRepository.findAll() }
-
-    println(res)
 }

@@ -5,5 +5,7 @@ create table "iphone"
     "cap_city"  text    not null,
     "longivity" text    not null,
     "proc"      text    not null,
-    "version"   integer not null
+    "version"   integer not null,
+    "date"      date    not null,
+    "bool"      boolean not null
 );

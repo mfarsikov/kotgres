@@ -6,6 +6,7 @@ import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
+import java.time.LocalDate
 import javax.sql.DataSource
 
 class RepositoryTest {
@@ -32,7 +33,9 @@ class RepositoryTest {
                     longivity = "13h"
                 )
             ),
-            version = 13
+            version = 13,
+            bool = true,
+            date = LocalDate.parse("2010-01-01")
         )
     }
 
@@ -61,13 +64,14 @@ class RepositoryTest {
     }
 
     @Test
-    fun `rollback on exception`(){
+    fun `rollback on exception`() {
         try {
             db.transaction {
                 iphoneRepository.save(phone)
                 error("")
             }
-        }catch (ex:IllegalStateException){}
+        } catch (ex: IllegalStateException) {
+        }
 
         val phones = db.transaction(readOnly = true) { iphoneRepository.findAll() }
         assert(phones.isEmpty())
@@ -126,14 +130,14 @@ class RepositoryTest {
     }
 
     @Test
-    fun `not null method throws if there is no result`(){
+    fun `not null method throws if there is no result`() {
         expect<NoSuchElementException> {
             db.transaction(readOnly = true) { iphoneRepository.findByIdOrThrow(phone.id) }
         }
     }
 
     @Test
-    fun `multiple parameters combined with AND`(){
+    fun `multiple parameters combined with AND`() {
         db.transaction { iphoneRepository.save(phone) }
 
         val res = db.transaction(readOnly = true) { iphoneRepository.findByIdAndVersion("13", 13) }
@@ -144,7 +148,7 @@ class RepositoryTest {
     }
 
     @Test
-    fun `@Where annotation works`(){
+    fun `@Where annotation works`() {
         db.transaction { iphoneRepository.save(phone) }
 
         val res = db.transaction(readOnly = true) { iphoneRepository.findByCapacityAndVersion("13wh", 10) }

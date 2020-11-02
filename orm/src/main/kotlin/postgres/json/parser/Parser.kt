@@ -36,12 +36,14 @@ class Parser(
 
     private val cache = mutableMapOf<QualifiedName, Klass>()
 
-    fun parse(element: Element):Klass{
+    fun parse(element: Element): Klass {
         element as Symbol.ClassSymbol
-        return find(QualifiedName(
-            pkg = element.className().substringBeforeLast("."),
-            name = element.className().substringAfterLast(".")
-        ))
+        return find(
+            QualifiedName(
+                pkg = element.className().substringBeforeLast("."),
+                name = element.className().substringAfterLast(".")
+            )
+        )
     }
 
     private fun parseInternal(element: Element): Klass {
@@ -83,7 +85,7 @@ class Parser(
                         )
                     },
                     returnType = func.returnType.toType(),
-                    annotationConfigs = methodNameToAnnotations[func.name]?: emptyList(),
+                    annotationConfigs = methodNameToAnnotations[func.name] ?: emptyList(),
                     abstract = false,
                     isExtension = false
                 )
@@ -95,7 +97,12 @@ class Parser(
 
         val fieldNameToAnnotationDetails = element.members_field.elements
             .filterIsInstance<Symbol.VarSymbol>()
-            .associate { it.name.toString() to listOfNotNull(it.getAnnotation(Column::class.java),it.getAnnotation(Id::class.java)) }
+            .associate {
+                it.name.toString() to listOfNotNull(
+                    it.getAnnotation(Column::class.java),
+                    it.getAnnotation(Id::class.java)
+                )
+            }
 
         return Klass(
             name = QualifiedName(
@@ -106,7 +113,7 @@ class Parser(
                 Field(
                     name = it.name,
                     type = it.returnType.toType(),
-                    annotations = fieldNameToAnnotationDetails[it.name]?: emptyList()
+                    annotations = fieldNameToAnnotationDetails[it.name] ?: emptyList()
                 )
             },
             annotations = listOfNotNull(tableAnnotation, repoAnnotation),
@@ -165,21 +172,32 @@ private val typeDeclarationPattern = "^(([\\w\\.]*)\\.)?(\\w*)(<.*>)?".toRegex()
 private fun String.extractPackage() = typeDeclarationPattern.find(this)!!.groupValues[2]
 private fun String.extractClassName() = typeDeclarationPattern.find(this)!!.groupValues[3]
 
-val UNIT =    QualifiedName(pkg = "kotlin", name = "Unit")
+val primitives = KotlinType.values().map { it.qn }.toSet()
 
-private val primitives = setOf(
-    QualifiedName(pkg = "kotlin", name = "String"),
-    QualifiedName(pkg = "kotlin", name = "Long"),
-    QualifiedName(pkg = "kotlin", name = "Int"),
-    QualifiedName(pkg = "kotlin", name = "Double"),
-    QualifiedName(pkg = "kotlin", name = "Float"),
-    QualifiedName(pkg = "kotlin", name = "Boolean"),
-    QualifiedName(pkg = "java.util", name = "UUID"),
-    QualifiedName(pkg = "kotlin.collections", name = "List"),
-    QualifiedName(pkg = "kotlin.collections", name = "MutableList"),
-    QualifiedName(pkg = "kotlin.collections", name = "MutableMap"),
-    QualifiedName(pkg = "kotlin.collections", name = "Map"),
-    QualifiedName(pkg = "java.util", name = "Map"),
-    QualifiedName(pkg = "java.util", name = "List"),
-    UNIT,
-)
+enum class KotlinType(val qn: QualifiedName) {
+    STRING(QualifiedName(pkg = "kotlin", name = "String")),
+    LONG(QualifiedName(pkg = "kotlin", name = "Long")),
+    INT(QualifiedName(pkg = "kotlin", name = "Int")),
+    DOUBLE(QualifiedName(pkg = "kotlin", name = "Double")),
+    FLOAT(QualifiedName(pkg = "kotlin", name = "Float")),
+    BOOLEAN(QualifiedName(pkg = "kotlin", name = "Boolean")),
+    BYTE_ARRAY(QualifiedName(pkg = "kotlin", name = "ByteArray")),
+    UUID(QualifiedName(pkg = "java.util", name = "UUID")),
+    LIST(QualifiedName(pkg = "kotlin.collections", name = "List")),
+    MUTABLE_LIST(QualifiedName(pkg = "kotlin.collections", name = "MutableList")),
+    MUTABLE_MAP(QualifiedName(pkg = "kotlin.collections", name = "MutableMap")),
+    MAP(QualifiedName(pkg = "kotlin.collections", name = "Map")),
+    BIG_DECIMAL(QualifiedName(pkg = "java.math", name = "BigDecimal")),
+    LOCAL_DATE(QualifiedName(pkg = "java.time", name = "LocalDate")),
+    LOCAL_DATE_TIME(QualifiedName(pkg = "java.time", name = "LocalDateTime")),
+    ZONED_DATE_TIME(QualifiedName(pkg = "java.time", name = "ZonedDateTime")),
+    INSTANT(QualifiedName(pkg = "java.time", name = "Instant")),
+    UNIT(QualifiedName(pkg = "kotlin", name = "Unit")),
+    ;
+    companion object {
+        fun of(qualifiedName: QualifiedName): KotlinType? {
+            return values().singleOrNull { it.qn == qualifiedName }
+        }
+    }
+
+}

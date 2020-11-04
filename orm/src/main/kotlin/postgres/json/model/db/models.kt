@@ -15,11 +15,8 @@ data class ColumnMapping(
     val path: List<String>,
     val type: Type,
     val column: ColumnDefinition,
-    val toSqlTypeConverter: Converter?,
-    val fromSqlTypeConverter: Converter?,
 )
 
-data class Converter(val fName:String)
 
 data class ColumnDefinition(
     val name: String,

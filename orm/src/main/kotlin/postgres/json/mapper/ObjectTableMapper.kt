@@ -6,7 +6,6 @@ import postgres.json.lib.Table
 import postgres.json.lib.Where
 import postgres.json.model.db.ColumnDefinition
 import postgres.json.model.db.ColumnMapping
-import postgres.json.model.db.Converter
 import postgres.json.model.db.PostgresType
 import postgres.json.model.db.TableMapping
 import postgres.json.model.klass.Klass
@@ -48,11 +47,11 @@ private fun objectConstructor(
     return if (klass.fields.isEmpty()) {
         val column = columns.single { it.path == path }
         ObjectConstructor.Extractor(
-            resultSetGetterName = (KotlinType.of(column.type.klass.name)?: error("cannot map to KotlinType: ${column.type.klass.name}")).toJdbcSetterName(),
+            resultSetGetterName = (KotlinType.of(column.type.klass.name)
+                ?: error("cannot map to KotlinType: ${column.type.klass.name}")).toJdbcSetterName(),
             columnName = column.column.name,
             fieldName = parentField,
-            converter = column.fromSqlTypeConverter
-            //converterName(column.column.type.toJdbcSetterType().qn, klass.name)
+            fieldType = column.type.klass.name,
         )
     } else {
         ObjectConstructor.Constructor(
@@ -123,8 +122,8 @@ fun KlassFunction.toQueryMethodWhere(mappedKlass: TableMapping): QueryMethod {
                 path = it.name,
                 type = it.type,
                 position = i + 1,
-                setterType = (KotlinType.of(it.type.klass.name)?: error("cannot map to KotlinType: ${it.type.klass.name}")).toJdbcSetterName(),
-                converter = null
+                setterType = (KotlinType.of(it.type.klass.name)
+                    ?: error("cannot map to KotlinType: ${it.type.klass.name}")).toJdbcSetterName(),
             )
         },
     )
@@ -165,8 +164,8 @@ fun KlassFunction.toQueryMethod(mappedKlass: TableMapping): QueryMethod {
                 path = parameters[i].name,
                 type = c.type,
                 position = i + 1,
-                setterType = (KotlinType.of(c.type.klass.name)?: error("cannot map to KotlinType: ${c.type.klass.name}")).toJdbcSetterName(),
-                converter = null,
+                setterType = (KotlinType.of(c.type.klass.name)
+                    ?: error("cannot map to KotlinType: ${c.type.klass.name}")).toJdbcSetterName(),
             )
         },
         returnType = returnType,
@@ -194,8 +193,8 @@ private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
         QueryParameter(
             position = i + 1,
             type = it.type,
-            converter = it.toSqlTypeConverter,
-            setterType = (KotlinType.of(it.type.klass.name)?: error("cannot map to KotlinType: ${it.type.klass.name}")).toJdbcSetterName(),
+            setterType = (KotlinType.of(it.type.klass.name)
+                ?: error("cannot map to KotlinType: ${it.type.klass.name}")).toJdbcSetterName(),
             path = it.path.joinToString("."),
         )
     }
@@ -210,7 +209,7 @@ private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
 
 private fun converterName(from: QualifiedName, to: QualifiedName): String? {
     if (from == to) return null
-    return when (from to to){
+    return when (from to to) {
         KotlinType.DATE.qn to SqlType.DATE.qualifiedName -> "postgres.json.lib.toDate"
         SqlType.DATE.qualifiedName to KotlinType.DATE.qn -> "postgres.json.lib.toLocalDate"
         else -> error("No converter from $from to $to")
@@ -259,6 +258,7 @@ private fun KotlinType.toJdbcSetterName(): String = when (this) {
     KotlinType.LONG -> "Long"
     KotlinType.DATE -> "Date"
     KotlinType.TIMESTAMP -> "Timestamp"
+    KotlinType.UUID -> "Object"
     //TODO
     else -> error("Unexpected postgres type: $this")
 }
@@ -269,7 +269,7 @@ private fun flattenToColumns(klass: Klass, path: List<String> = emptyList()): Li
 
         val colType: PostgresType? = columnAnnotation
             ?.type.takeIf { it != PostgresType.NONE }
-            //?: typeMappings[field.type.klass.name]
+        //?: typeMappings[field.type.klass.name]
 
         when {
             colType == null && field.type.klass.fields.isEmpty() -> {
@@ -287,8 +287,6 @@ private fun flattenToColumns(klass: Klass, path: List<String> = emptyList()): Li
                             isId = field.annotations.filterIsInstance<Id>().singleOrNull()?.let { true } ?: false
                         ),
                         type = field.type,
-                        toSqlTypeConverter = field.annotations.filterIsInstance<Column>().singleOrNull()?.takeIf { it.toSqlFunction.isNotEmpty() }?.let { Converter(it.toSqlFunction) },
-                        fromSqlTypeConverter = field.annotations.filterIsInstance<Column>().singleOrNull()?.takeIf { it.fromSqlFunction.isNotEmpty() }?.let { Converter(it.fromSqlFunction) },
                     )
                 )
             }
@@ -316,7 +314,7 @@ private fun flattenToColumns(klass: Klass, path: List<String> = emptyList()): Li
 //    //QualifiedName(pkg = "java.time", name = "OffsetDateTime") to "timestamp with time zone",TODO?
 //)
 
-enum class SqlType(val qualifiedName: QualifiedName){
-    DATE(QualifiedName("java.sql","Date")),
+enum class SqlType(val qualifiedName: QualifiedName) {
+    DATE(QualifiedName("java.sql", "Date")),
     ;
 }

@@ -1,7 +1,6 @@
 package my.pack
 
 import postgres.json.lib.Column
-import postgres.json.lib.LocalDateConverter
 import postgres.json.lib.PostgresRepository
 import postgres.json.lib.Repository
 import postgres.json.lib.Table

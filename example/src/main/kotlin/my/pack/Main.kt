@@ -1,17 +1,20 @@
 package my.pack
 
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
+import org.flywaydb.core.Flyway
 import postgres.json.lib.Column
 import postgres.json.lib.Id
 import postgres.json.lib.PostgresRepository
 import postgres.json.lib.Repository
 import postgres.json.lib.Table
 import postgres.json.lib.Where
-import postgres.json.lib.toDate
 import postgres.json.model.db.PostgresType
 import java.sql.Date
 import java.sql.Timestamp
 import java.time.LocalDate
-import kotlin.reflect.KFunction
+import java.util.*
+import javax.sql.DataSource
 
 @Table
 data class Iphone(
@@ -28,7 +31,9 @@ data class Iphone(
     @Column(name = "date", PostgresType.DATE)
     val date: Date,
     @Column(type = PostgresType.TIMESTAMP_WITH_TIMEZONE)
-    val timestamp: Timestamp
+    val timestamp: Timestamp,
+    @Column(type = PostgresType.UUID)
+    val uuid: UUID,
 )
 
 data class Spec(
@@ -48,17 +53,39 @@ data class Battery(
 interface IphoneRepository : Repository<Iphone> {
 
     fun findById(id: String): Iphone?
-    fun findByDate(date:Date): List<Iphone>
+    fun findByDate(date: Date): List<Iphone>
     fun findByIdOrThrow(id: String): Iphone
     fun findBySpecProc(proc: String): List<Iphone>
     fun findSingleBySpecProc(proc: String): Iphone
     fun findByIdAndVersion(id: String, version: Int): Iphone?
-    fun findByTimestamp(timestamp: Timestamp):List<Iphone>
+    fun findByTimestamp(timestamp: Timestamp): List<Iphone>
+    fun findByUUID(uuid: UUID): Iphone?
 
-    fun delete(id: String, date:Date)
+    fun delete(id: String, date: Date)
     fun deleteByDate(date: Date)
 
     @Where("cap_city = :capacity and :v <= version and date <= :date")
     fun findByCapacityAndVersion(capacity: String, v: Int, date: Date): List<Iphone>
+
+}
+
+fun main() {
+    val ds: DataSource = HikariDataSource(HikariConfig().apply {
+        jdbcUrl = "jdbc:postgresql://localhost/postgres?user=postgres&password=postgres"
+        username = "postgres"
+    })
+
+    val message = Flyway.configure().dataSource(ds).load().migrate()
+
+    val prepareStatement = ds.connection.prepareStatement(
+        """
+                |INSERT INTO "t" 
+                |( "date")
+                |VALUES (?)
+    """.trimMargin()
+    )
+
+    prepareStatement.setObject(1, LocalDate.parse("2010-01-01"))
+    prepareStatement.executeUpdate()
 
 }

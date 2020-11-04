@@ -1,8 +1,6 @@
 package postgres.json.lib
 
 import postgres.json.model.db.PostgresType
-import kotlin.reflect.KClass
-import kotlin.reflect.KFunction
 
 @Target(AnnotationTarget.FIELD)
 annotation class Id

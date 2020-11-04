@@ -10,7 +10,9 @@ import java.sql.Date
 import java.sql.Timestamp
 import java.time.Instant
 import java.time.LocalDate
+import java.util.*
 import javax.sql.DataSource
+import kotlin.NoSuchElementException
 
 class RepositoryTest {
 
@@ -39,7 +41,8 @@ class RepositoryTest {
             version = 13,
             bool = true,
             date = java.sql.Date.valueOf(LocalDate.parse("2010-01-01")),
-            timestamp = Timestamp.from(Instant.parse("2010-01-01T00:00:00.000Z"))
+            timestamp = Timestamp.from(Instant.parse("2010-01-01T00:00:00.000Z")),
+            uuid = UUID.fromString("66832deb-1864-42b1-b057-e65c28d39a4e")
         )
     }
 
@@ -188,6 +191,19 @@ class RepositoryTest {
         all(
             { assert(`find by timestamp`("2010-01-01T00:00:00.000Z") == listOf(phone)) },
             { assert(`find by timestamp`("2010-01-01T00:00:00.001Z") == emptyList<Iphone>()) },
+        )
+    }
+
+    @Test
+    fun `search by uuid`() {
+        db.transaction { iphoneRepository.save(phone) }
+
+        fun `find by uuid`(uuid: String) =
+            db.transaction { this.iphoneRepository.findByUUID(UUID.fromString(uuid)) }
+
+        all(
+            { assert(`find by uuid`("66832deb-1864-42b1-b057-e65c28d39a4e") == phone) },
+            { assert(`find by uuid`("00000000-0000-0000-0000-000000000001") == null) },
         )
     }
 }

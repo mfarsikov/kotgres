@@ -1,7 +1,5 @@
 package postgres.json.model.repository
 
-import postgres.json.model.db.Converter
-import postgres.json.model.db.PostgresType
 import postgres.json.model.db.TableMapping
 import postgres.json.model.klass.Klass
 import postgres.json.model.klass.QualifiedName
@@ -29,19 +27,19 @@ data class QueryParameter(
     val type: Type,
     val setterType: String,
     val path: String,
-    val converter: Converter?,
 )
 
-sealed class ObjectConstructor{
+sealed class ObjectConstructor {
     data class Constructor(
         val fieldName: String?,
         val className: QualifiedName,
         val nestedFields: List<ObjectConstructor>,
-    ):ObjectConstructor()
+    ) : ObjectConstructor()
+
     data class Extractor(
         val resultSetGetterName: String,
         val columnName: String,
         val fieldName: String?,
-        val converter: Converter?,
-    ):ObjectConstructor()
+        val fieldType: QualifiedName,
+    ) : ObjectConstructor()
 }

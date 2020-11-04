@@ -185,10 +185,20 @@ private fun CodeBlockBuilder.generateConstructorCall(c: ObjectConstructor, isTop
             addStatement(")$trailingComma")
         }
         is ObjectConstructor.Extractor -> {
-            if(c.converter == null)
-                addStatement("%L = it.get%L(%S),", c.fieldName, c.resultSetGetterName, c.columnName)
-            else
-                addStatement("%L = %M(it.get%L(%S)),", c.fieldName,MemberName(c.converter.fName.substringBeforeLast('.'), c.converter.fName.substringAfterLast('.')), c.resultSetGetterName, c.columnName)
+            if(c.resultSetGetterName == "Object") {
+                addStatement(
+                    "%L = it.getObject(%S, %M::class.java),",
+                    c.fieldName,
+                    c.columnName,
+                    MemberName(c.fieldType.pkg, c.fieldType.name)
+                )
+            }else{
+                addStatement(
+                    "%L = it.get${c.resultSetGetterName}(%S),",
+                    c.fieldName,
+                    c.columnName,
+                )
+            }
         }
     }
 }
@@ -206,20 +216,11 @@ private fun TypeSpecBuilder.generateSaveAllFunction(repo: Repo) {
             controlFlow("connection.prepareStatement(query).use") {
                 `for`("item in items") {
                     for (param in repo.saveAllMethod.queryParameters) {
-                        if (param.converter != null) {
-                            addStatement(
-                                "it.set${param.setterType}(%L, %M(item.%L))",
-                                param.position,
-                                MemberName(param.converter.fName.substringBeforeLast('.'),param.converter.fName.substringAfterLast('.') ),
-                                param.path
-                            )
-                        }else{
-                            addStatement(
-                                "it.set${param.setterType}(%L, item.%L)",
-                                param.position,
-                                param.path
-                            )
-                        }
+                        addStatement(
+                            "it.set${param.setterType}(%L, item.%L)",
+                            param.position,
+                            param.path
+                        )
                     }
                     addStatement("it.addBatch()")
                 }

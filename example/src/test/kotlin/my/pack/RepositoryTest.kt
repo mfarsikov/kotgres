@@ -7,9 +7,11 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import java.sql.Date
+import java.sql.Time
 import java.sql.Timestamp
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.util.*
 import javax.sql.DataSource
 import kotlin.NoSuchElementException
@@ -42,7 +44,8 @@ class RepositoryTest {
             bool = true,
             date = java.sql.Date.valueOf(LocalDate.parse("2010-01-01")),
             timestamp = Timestamp.from(Instant.parse("2010-01-01T00:00:00.000Z")),
-            uuid = UUID.fromString("66832deb-1864-42b1-b057-e65c28d39a4e")
+            uuid = UUID.fromString("66832deb-1864-42b1-b057-e65c28d39a4e"),
+            time = Time.valueOf(LocalTime.parse("00:00:00"))
         )
     }
 
@@ -204,6 +207,19 @@ class RepositoryTest {
         all(
             { assert(`find by uuid`("66832deb-1864-42b1-b057-e65c28d39a4e") == phone) },
             { assert(`find by uuid`("00000000-0000-0000-0000-000000000001") == null) },
+        )
+    }
+
+    @Test
+    fun `search by time`() {
+        db.transaction { iphoneRepository.save(phone) }
+
+        fun `find by time`(time: String) =
+            db.transaction { this.iphoneRepository.findByTime(Time.valueOf(LocalTime.parse(time))) }
+
+        all(
+            { assert(`find by time`("00:00:00") == listOf(phone) )},
+            { assert(`find by time`("00:00:01") == emptyList<Iphone>()) },
         )
     }
 }

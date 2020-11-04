@@ -11,6 +11,7 @@ import postgres.json.lib.Table
 import postgres.json.lib.Where
 import postgres.json.model.db.PostgresType
 import java.sql.Date
+import java.sql.Time
 import java.sql.Timestamp
 import java.time.LocalDate
 import java.util.*
@@ -34,6 +35,8 @@ data class Iphone(
     val timestamp: Timestamp,
     @Column(type = PostgresType.UUID)
     val uuid: UUID,
+    @Column(type = PostgresType.TIME)
+    val time: Time,
 )
 
 data class Spec(
@@ -60,6 +63,7 @@ interface IphoneRepository : Repository<Iphone> {
     fun findByIdAndVersion(id: String, version: Int): Iphone?
     fun findByTimestamp(timestamp: Timestamp): List<Iphone>
     fun findByUUID(uuid: UUID): Iphone?
+    fun findByTime(time: Time): List<Iphone>
 
     fun delete(id: String, date: Date)
     fun deleteByDate(date: Date)

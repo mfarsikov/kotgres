@@ -190,6 +190,7 @@ enum class KotlinType(val qn: QualifiedName) {
     BIG_DECIMAL(QualifiedName(pkg = "java.math", name = "BigDecimal")),
     DATE(QualifiedName(pkg = "java.sql", name = "Date")),
     TIMESTAMP(QualifiedName(pkg = "java.sql", name = "Timestamp")),
+    TIME(QualifiedName(pkg = "java.sql", name = "Time")),
     LOCAL_DATE_TIME(QualifiedName(pkg = "java.time", name = "LocalDateTime")),
     ZONED_DATE_TIME(QualifiedName(pkg = "java.time", name = "ZonedDateTime")),
     INSTANT(QualifiedName(pkg = "java.time", name = "Instant")),

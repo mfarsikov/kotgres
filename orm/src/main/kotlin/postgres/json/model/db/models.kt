@@ -42,7 +42,7 @@ enum class PostgresType(
     DOUBLE("double precision"),
     MONEY("money"),
     NUMERIC("numeric"), //TODO has params
-    TIME("time"), // with timezone not recomended
+    TIME("time without time zone"), // with timezone not recomended
     TIMESTAMP("timestamp"),
     TIMESTAMP_WITH_TIMEZONE("timestamp with time zone"),
     XML("xml"),
@@ -56,4 +56,3 @@ enum class PostgresType(
         }
     }
 }
-

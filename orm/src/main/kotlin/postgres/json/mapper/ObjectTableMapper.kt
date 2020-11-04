@@ -207,15 +207,6 @@ private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
     )
 }
 
-private fun converterName(from: QualifiedName, to: QualifiedName): String? {
-    if (from == to) return null
-    return when (from to to) {
-        KotlinType.DATE.qn to SqlType.DATE.qualifiedName -> "postgres.json.lib.toDate"
-        SqlType.DATE.qualifiedName to KotlinType.DATE.qn -> "postgres.json.lib.toLocalDate"
-        else -> error("No converter from $from to $to")
-    }
-}
-
 private fun deleteAllQuery(mappedKlass: TableMapping): QueryMethod {
     val delete = """DELETE FROM "${mappedKlass.name}" """.trimMargin()
 
@@ -258,6 +249,7 @@ private fun KotlinType.toJdbcSetterName(): String = when (this) {
     KotlinType.LONG -> "Long"
     KotlinType.DATE -> "Date"
     KotlinType.TIMESTAMP -> "Timestamp"
+    KotlinType.TIME -> "Time"
     KotlinType.UUID -> "Object"
     //TODO
     else -> error("Unexpected postgres type: $this")
@@ -293,28 +285,4 @@ private fun flattenToColumns(klass: Klass, path: List<String> = emptyList()): Li
             else -> flattenToColumns(field.type.klass, path = path + field.name)
         }
     }
-}
-
-//private val typeMappings = mapOf(
-//    QualifiedName(pkg = "kotlin", name = "String") to PostgresType.TEXT,
-//    QualifiedName(pkg = "kotlin", name = "Long") to PostgresType.BIGINT,
-//    QualifiedName(pkg = "kotlin", name = "Int") to PostgresType.INTEGER,
-//    QualifiedName(pkg = "kotlin", name = "Double") to PostgresType.DOUBLE,
-//    QualifiedName(pkg = "kotlin", name = "Float") to PostgresType.REAL,
-//    QualifiedName(pkg = "kotlin", name = "Boolean") to PostgresType.BOOLEAN,
-//    QualifiedName(pkg = "kotlin", name = "ByteArray") to PostgresType.BYTEA,
-//    QualifiedName(pkg = "java.math", name = "BigDecimal") to PostgresType.NUMERIC,
-//    QualifiedName(pkg = "java.util", name = "UUID") to PostgresType.UUID,
-//    QualifiedName(pkg = "java.time", name = "Instant") to PostgresType.TIMESTAMP_WITH_TIMEZONE,//TODO with timezone
-//    QualifiedName(pkg = "java.sql", name = "Date") to PostgresType.DATE,
-//    QualifiedName(pkg = "java.sql", name = "Timestamp") to PostgresType.TIMESTAMP_WITH_TIMEZONE,
-//    QualifiedName(pkg = "java.time", name = "LocalTime") to PostgresType.TIME,
-//    QualifiedName(pkg = "java.time", name = "LocalDateTime") to PostgresType.TIMESTAMP,
-//    QualifiedName(pkg = "java.time", name = "ZonedDateTime") to PostgresType.TIMESTAMP_WITH_TIMEZONE,
-//    //QualifiedName(pkg = "java.time", name = "OffsetDateTime") to "timestamp with time zone",TODO?
-//)
-
-enum class SqlType(val qualifiedName: QualifiedName) {
-    DATE(QualifiedName("java.sql", "Date")),
-    ;
 }

@@ -6,6 +6,9 @@ import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
+import java.sql.Date
+import java.sql.Timestamp
+import java.time.Instant
 import java.time.LocalDate
 import javax.sql.DataSource
 
@@ -35,7 +38,8 @@ class RepositoryTest {
             ),
             version = 13,
             bool = true,
-            date = LocalDate.parse("2010-01-01")
+            date = java.sql.Date.valueOf(LocalDate.parse("2010-01-01")),
+            timestamp = Timestamp.from(Instant.parse("2010-01-01T00:00:00.000Z"))
         )
     }
 
@@ -140,23 +144,50 @@ class RepositoryTest {
     fun `multiple parameters combined with AND`() {
         db.transaction { iphoneRepository.save(phone) }
 
-        val res = db.transaction(readOnly = true) { iphoneRepository.findByIdAndVersion("13", 13) }
-        assert(res == phone)
+        fun `find by id and version`(id: String, version: Int) =
+            db.transaction(readOnly = true) { iphoneRepository.findByIdAndVersion(id, version) }
 
-        val res2 = db.transaction(readOnly = true) { iphoneRepository.findByIdAndVersion("13", 14) }
-        assert(res2 == null)
+        all(
+            { assert(`find by id and version`("13", 13) == phone) },
+            { assert(`find by id and version`("13", 14) == null) },
+        )
     }
 
     @Test
     fun `@Where annotation works`() {
         db.transaction { iphoneRepository.save(phone) }
 
-        val res = db.transaction(readOnly = true) { iphoneRepository.findByCapacityAndVersion("13wh", 10) }
+        fun `test @Where`(
+            capacity: String,
+            v: Int,
+            date: String
+        ) = db.transaction(readOnly = true) {
+            iphoneRepository.findByCapacityAndVersion(
+                capacity = capacity,
+                v = v,
+                date = Date.valueOf(LocalDate.parse(date))
+            )
+        }
 
-        assert(res == listOf(phone))
+        all(
+            { assert(`test @Where`("13wh", 13, "2010-01-01") == listOf(phone)) },
+            { assert(`test @Where`("13wh", 13, "2010-01-02") == listOf(phone)) },
+            { assert(`test @Where`("13wh", 12, "2010-01-02") == listOf(phone)) },
+            { assert(`test @Where`("12wh", 12, "2010-01-02") == emptyList<Iphone>()) },
+            { assert(`test @Where`("13wh", 12, "2009-01-01") == emptyList<Iphone>()) },
+        )
+    }
 
-        val res2 = db.transaction(readOnly = true) { iphoneRepository.findByCapacityAndVersion("13wh", 15) }
-        assert(res2 == emptyList<Iphone>())
+    @Test
+    fun `search by timestamp`() {
+        db.transaction { iphoneRepository.save(phone) }
 
+        fun `find by timestamp`(ts: String) =
+            db.transaction { this.iphoneRepository.findByTimestamp(Timestamp.from(Instant.parse(ts))) }
+
+        all(
+            { assert(`find by timestamp`("2010-01-01T00:00:00.000Z") == listOf(phone)) },
+            { assert(`find by timestamp`("2010-01-01T00:00:00.001Z") == emptyList<Iphone>()) },
+        )
     }
 }

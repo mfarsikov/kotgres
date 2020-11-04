@@ -12,4 +12,19 @@ inline fun <reified E : Throwable> expect(block: () -> Any?) {
     catch (actual: Throwable) {
         assert(actual::class == E::class)
     }
+
+}
+
+fun all(vararg r: () -> Unit) {
+
+    val exs = r.mapNotNull {
+        try {
+            it()
+            null
+        } catch (ex: AssertionError) {
+            ex.message
+        }
+    }
+    if (exs.isNotEmpty())
+        throw AssertionError(exs.joinToString(separator = "\n\n") )
 }

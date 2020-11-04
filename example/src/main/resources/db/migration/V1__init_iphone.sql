@@ -7,5 +7,6 @@ create table "iphone"
     "proc"      text    not null,
     "version"   integer not null,
     "date"      date    not null,
-    "bool"      boolean not null
+    "bool"      boolean not null,
+    "timestamp" timestamp with time zone not null
 );

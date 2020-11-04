@@ -11,6 +11,7 @@ import java.sql.Time
 import java.sql.Timestamp
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.*
 import javax.sql.DataSource
@@ -47,6 +48,7 @@ class RepositoryTest {
             uuid = UUID.fromString("66832deb-1864-42b1-b057-e65c28d39a4e"),
             time = Time.valueOf(LocalTime.parse("00:00:00")),
             localDate = LocalDate.parse("2010-01-01"),
+            localDateTime = LocalDateTime.parse("2010-01-01T00:00:00"),
         )
     }
 
@@ -233,6 +235,18 @@ class RepositoryTest {
         all(
             { assert(`find by local date`("2010-01-01") == listOf(phone) )},
             { assert(`find by local date`("2010-01-02") == emptyList<Iphone>()) },
+        )
+    }
+    @Test
+    fun `search by local date time`() {
+        db.transaction { iphoneRepository.save(phone) }
+
+        fun `find by local date time`(time: String) =
+            db.transaction { this.iphoneRepository.findByLocalDateTime(LocalDateTime.parse(time)) }
+
+        all(
+            { assert(`find by local date time`("2010-01-01T00:00:00") == listOf(phone) )},
+            { assert(`find by local date time`("2010-01-02T00:00:00") == emptyList<Iphone>()) },
         )
     }
 }

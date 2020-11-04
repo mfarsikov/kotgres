@@ -177,11 +177,11 @@ val primitives = KotlinType.values().map { it.qn }.toSet()
 enum class KotlinType(val qn: QualifiedName, val jdbcSetterName: String?) {
     BIG_DECIMAL(QualifiedName(pkg = "java.math", name = "BigDecimal"), "BigDecimal"),
     BOOLEAN(QualifiedName(pkg = "kotlin", name = "Boolean"), "Boolean"),
-    BYTE_ARRAY(QualifiedName(pkg = "kotlin", name = "ByteArray"), "ByteArray"),
+    BYTE_ARRAY(QualifiedName(pkg = "kotlin", name = "ByteArray"), "Bytes"),
     DATE(QualifiedName(pkg = "java.sql", name = "Date"), "Date"),
     DOUBLE(QualifiedName(pkg = "kotlin", name = "Double"), "Double"),
     FLOAT(QualifiedName(pkg = "kotlin", name = "Float"), "Float"),
-    INSTANT(QualifiedName(pkg = "java.time", name = "Instant"), "Object"),
+    INSTANT(QualifiedName(pkg = "java.time", name = "Instant"), null),
     INT(QualifiedName(pkg = "kotlin", name = "Int"), "Int"),
     LIST(QualifiedName(pkg = "kotlin.collections", name = "List"), null),
     LONG(QualifiedName(pkg = "kotlin", name = "Long"), "Long"),
@@ -195,7 +195,7 @@ enum class KotlinType(val qn: QualifiedName, val jdbcSetterName: String?) {
     TIMESTAMP(QualifiedName(pkg = "java.sql", name = "Timestamp"), "Timestamp"),
     UNIT(QualifiedName(pkg = "kotlin", name = "Unit"), null),
     UUID(QualifiedName(pkg = "java.util", name = "UUID"), "Object"),
-    ZONED_DATE_TIME(QualifiedName(pkg = "java.time", name = "ZonedDateTime"), "Object"),
+    ZONED_DATE_TIME(QualifiedName(pkg = "java.time", name = "ZonedDateTime"), null),
     ;
     companion object {
         fun of(qualifiedName: QualifiedName): KotlinType? {

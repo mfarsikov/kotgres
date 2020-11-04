@@ -43,7 +43,7 @@ enum class PostgresType(
     MONEY("money"),
     NUMERIC("numeric"), //TODO has params
     TIME("time without time zone"), // with timezone not recomended
-    TIMESTAMP("timestamp"),
+    TIMESTAMP("timestamp without time zone"),
     TIMESTAMP_WITH_TIMEZONE("timestamp with time zone"),
     XML("xml"),
     TSVECTOR("tsvector"),

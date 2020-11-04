@@ -13,7 +13,10 @@ import postgres.json.model.db.PostgresType
 import java.sql.Date
 import java.sql.Time
 import java.sql.Timestamp
+import java.sql.Types.TIMESTAMP_WITH_TIMEZONE
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZonedDateTime
 import java.util.*
 import javax.sql.DataSource
 
@@ -39,6 +42,8 @@ data class Iphone(
     val time: Time,
     @Column(type = PostgresType.DATE)
     val localDate: LocalDate,
+    @Column(type = PostgresType.TIMESTAMP)
+    val localDateTime: LocalDateTime,
 )
 
 data class Spec(
@@ -67,6 +72,7 @@ interface IphoneRepository : Repository<Iphone> {
     fun findByUUID(uuid: UUID): Iphone?
     fun findByTime(time: Time): List<Iphone>
     fun findByLocalDate(localDate: LocalDate): List<Iphone>
+    fun findByLocalDateTime(localDateTime: LocalDateTime): List<Iphone>
 
     fun delete(id: String, date: Date)
     fun deleteByDate(date: Date)
@@ -87,12 +93,12 @@ fun main() {
     val prepareStatement = ds.connection.prepareStatement(
         """
                 |INSERT INTO "t" 
-                |( "date")
+                |( "z")
                 |VALUES (?)
     """.trimMargin()
     )
 
-    prepareStatement.setObject(1, LocalDate.parse("2010-01-01"))
+    prepareStatement.setObject(1, ZonedDateTime.parse("2010-01-01T00:00:00Z"), TIMESTAMP_WITH_TIMEZONE)
     prepareStatement.executeUpdate()
 
 }

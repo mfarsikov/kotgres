@@ -37,6 +37,8 @@ data class Iphone(
     val uuid: UUID,
     @Column(type = PostgresType.TIME)
     val time: Time,
+    @Column(type = PostgresType.DATE)
+    val localDate: LocalDate,
 )
 
 data class Spec(
@@ -64,6 +66,7 @@ interface IphoneRepository : Repository<Iphone> {
     fun findByTimestamp(timestamp: Timestamp): List<Iphone>
     fun findByUUID(uuid: UUID): Iphone?
     fun findByTime(time: Time): List<Iphone>
+    fun findByLocalDate(localDate: LocalDate): List<Iphone>
 
     fun delete(id: String, date: Date)
     fun deleteByDate(date: Date)

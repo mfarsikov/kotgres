@@ -10,5 +10,6 @@ create table "iphone"
     "bool"      boolean                  not null,
     "timestamp" timestamp with time zone not null,
     "uuid"      uuid                     not null,
-    "time"      time without time zone   not null
+    "time"      time without time zone   not null,
+    "local_date" date                     not null
 );

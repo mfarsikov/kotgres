@@ -45,7 +45,8 @@ class RepositoryTest {
             date = java.sql.Date.valueOf(LocalDate.parse("2010-01-01")),
             timestamp = Timestamp.from(Instant.parse("2010-01-01T00:00:00.000Z")),
             uuid = UUID.fromString("66832deb-1864-42b1-b057-e65c28d39a4e"),
-            time = Time.valueOf(LocalTime.parse("00:00:00"))
+            time = Time.valueOf(LocalTime.parse("00:00:00")),
+            localDate = LocalDate.parse("2010-01-01"),
         )
     }
 
@@ -220,6 +221,18 @@ class RepositoryTest {
         all(
             { assert(`find by time`("00:00:00") == listOf(phone) )},
             { assert(`find by time`("00:00:01") == emptyList<Iphone>()) },
+        )
+    }
+    @Test
+    fun `search by local date`() {
+        db.transaction { iphoneRepository.save(phone) }
+
+        fun `find by local date`(time: String) =
+            db.transaction { this.iphoneRepository.findByLocalDate(LocalDate.parse(time)) }
+
+        all(
+            { assert(`find by local date`("2010-01-01") == listOf(phone) )},
+            { assert(`find by local date`("2010-01-02") == emptyList<Iphone>()) },
         )
     }
 }

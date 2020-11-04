@@ -47,8 +47,8 @@ private fun objectConstructor(
     return if (klass.fields.isEmpty()) {
         val column = columns.single { it.path == path }
         ObjectConstructor.Extractor(
-            resultSetGetterName = (KotlinType.of(column.type.klass.name)
-                ?: error("cannot map to KotlinType: ${column.type.klass.name}")).toJdbcSetterName(),
+            resultSetGetterName = KotlinType.of(column.type.klass.name)?.jdbcSetterName
+                ?: error("cannot map to KotlinType: ${column.type.klass.name}"),
             columnName = column.column.name,
             fieldName = parentField,
             fieldType = column.type.klass.name,
@@ -122,8 +122,8 @@ fun KlassFunction.toQueryMethodWhere(mappedKlass: TableMapping): QueryMethod {
                 path = it.name,
                 type = it.type,
                 position = i + 1,
-                setterType = (KotlinType.of(it.type.klass.name)
-                    ?: error("cannot map to KotlinType: ${it.type.klass.name}")).toJdbcSetterName(),
+                setterType = KotlinType.of(it.type.klass.name)?.jdbcSetterName
+                    ?: error("cannot map to KotlinType: ${it.type.klass.name}"),
             )
         },
     )
@@ -164,8 +164,8 @@ fun KlassFunction.toQueryMethod(mappedKlass: TableMapping): QueryMethod {
                 path = parameters[i].name,
                 type = c.type,
                 position = i + 1,
-                setterType = (KotlinType.of(c.type.klass.name)
-                    ?: error("cannot map to KotlinType: ${c.type.klass.name}")).toJdbcSetterName(),
+                setterType = KotlinType.of(c.type.klass.name)?.jdbcSetterName
+                    ?: error("cannot map to KotlinType: ${c.type.klass.name}"),
             )
         },
         returnType = returnType,
@@ -193,8 +193,8 @@ private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
         QueryParameter(
             position = i + 1,
             type = it.type,
-            setterType = (KotlinType.of(it.type.klass.name)
-                ?: error("cannot map to KotlinType: ${it.type.klass.name}")).toJdbcSetterName(),
+            setterType = KotlinType.of(it.type.klass.name)?.jdbcSetterName
+                ?: error("cannot map to KotlinType: ${it.type.klass.name}"),
             path = it.path.joinToString("."),
         )
     }
@@ -236,23 +236,6 @@ private fun findAllQuery(mappedKlass: TableMapping): QueryMethod {
         ),
         returnsCollection = true
     )
-}
-
-
-private fun KotlinType.toJdbcSetterName(): String = when (this) {
-    KotlinType.BOOLEAN -> "Boolean"
-    KotlinType.DOUBLE -> "Double"
-    KotlinType.INT -> "Int"
-    KotlinType.BIG_DECIMAL -> "BigDecimal"
-    KotlinType.STRING -> "String"
-    KotlinType.FLOAT -> "Float"
-    KotlinType.LONG -> "Long"
-    KotlinType.DATE -> "Date"
-    KotlinType.TIMESTAMP -> "Timestamp"
-    KotlinType.TIME -> "Time"
-    KotlinType.UUID -> "Object"
-    //TODO
-    else -> error("Unexpected postgres type: $this")
 }
 
 private fun flattenToColumns(klass: Klass, path: List<String> = emptyList()): List<ColumnMapping> {

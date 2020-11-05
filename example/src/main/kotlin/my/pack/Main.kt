@@ -17,6 +17,7 @@ import java.sql.Time
 import java.sql.Timestamp
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.util.*
 import javax.sql.DataSource
 
@@ -39,7 +40,7 @@ data class Iphone(
     @Column(type = PostgresType.UUID)
     val uuid: UUID,
     @Column(type = PostgresType.TIME)
-    val time: Time,
+    val time: LocalTime,
     @Column(type = PostgresType.DATE)
     val localDate: LocalDate,
     @Column(type = PostgresType.TIMESTAMP)
@@ -72,7 +73,7 @@ interface IphoneRepository : Repository<Iphone> {
     fun findByIdAndVersion(id: String, version: Int): Iphone?
     fun findByTimestamp(timestamp: Timestamp): List<Iphone>
     fun findByUUID(uuid: UUID): Iphone?
-    fun findByTime(time: Time): List<Iphone>
+    fun findByTime(time: LocalTime): List<Iphone>
     fun findByLocalDate(localDate: LocalDate): List<Iphone>
     fun findByLocalDateTime(localDateTime: LocalDateTime): List<Iphone>
 

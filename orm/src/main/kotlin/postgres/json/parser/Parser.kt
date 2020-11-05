@@ -187,6 +187,7 @@ enum class KotlinType(val qn: QualifiedName, val jdbcSetterName: String?) {
     LONG(QualifiedName(pkg = "kotlin", name = "Long"), "Long"),
     LOCAL_DATE(QualifiedName(pkg = "java.time", name = "LocalDate"), "Object"),
     LOCAL_DATE_TIME(QualifiedName(pkg = "java.time", name = "LocalDateTime"), "Object"),
+    LOCAL_TIME(QualifiedName(pkg = "java.time", name = "LocalTime"), "Object"),
     MAP(QualifiedName(pkg = "kotlin.collections", name = "Map"), null),
     MUTABLE_LIST(QualifiedName(pkg = "kotlin.collections", name = "MutableList"), null),
     MUTABLE_MAP(QualifiedName(pkg = "kotlin.collections", name = "MutableMap"), null),

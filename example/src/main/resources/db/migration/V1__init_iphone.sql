@@ -12,5 +12,6 @@ create table "iphone"
     "uuid"            uuid                        not null,
     "time"            time without time zone      not null,
     "local_date"      date                        not null,
-    "local_date_time" timestamp without time zone not null
+    "local_date_time" timestamp without time zone not null,
+    "list"            jsonb                       not null
 );

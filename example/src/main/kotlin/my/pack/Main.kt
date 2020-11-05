@@ -3,6 +3,8 @@ package my.pack
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.flywaydb.core.Flyway
+import org.intellij.lang.annotations.Language
+import org.postgresql.util.PGobject
 import postgres.json.lib.Column
 import postgres.json.lib.Id
 import postgres.json.lib.PostgresRepository
@@ -13,10 +15,8 @@ import postgres.json.model.db.PostgresType
 import java.sql.Date
 import java.sql.Time
 import java.sql.Timestamp
-import java.sql.Types.TIMESTAMP_WITH_TIMEZONE
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.ZonedDateTime
 import java.util.*
 import javax.sql.DataSource
 
@@ -44,6 +44,8 @@ data class Iphone(
     val localDate: LocalDate,
     @Column(type = PostgresType.TIMESTAMP)
     val localDateTime: LocalDateTime,
+    @Column(type = PostgresType.JSONB)
+    val list: List<String>
 )
 
 data class Spec(
@@ -88,17 +90,36 @@ fun main() {
         username = "postgres"
     })
 
-    val message = Flyway.configure().dataSource(ds).load().migrate()
+   // val message = Flyway.configure().dataSource(ds).load().migrate()
 
     val prepareStatement = ds.connection.prepareStatement(
         """
                 |INSERT INTO "t" 
-                |( "z")
+                |( "v")
                 |VALUES (?)
     """.trimMargin()
     )
 
-    prepareStatement.setObject(1, ZonedDateTime.parse("2010-01-01T00:00:00Z"), TIMESTAMP_WITH_TIMEZONE)
+
+    @Language("JSON")
+    val json = """
+        {
+            "x": "Y"
+        }
+    """.trimIndent()
+
+    PGobject().apply {
+        type = "jsonb"
+        value =json
+    }
+    prepareStatement.setObject(1, PGobject().apply {
+        type = "jsonb"
+        value =json
+    })
     prepareStatement.executeUpdate()
+
+    val rs = ds.connection.prepareStatement("select v from t").executeQuery()
+rs.next()
+    println("read: " + rs.getString(1))
 
 }

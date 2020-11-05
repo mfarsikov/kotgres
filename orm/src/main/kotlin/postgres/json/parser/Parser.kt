@@ -183,7 +183,7 @@ enum class KotlinType(val qn: QualifiedName, val jdbcSetterName: String?) {
     FLOAT(QualifiedName(pkg = "kotlin", name = "Float"), "Float"),
     INSTANT(QualifiedName(pkg = "java.time", name = "Instant"), null),
     INT(QualifiedName(pkg = "kotlin", name = "Int"), "Int"),
-    LIST(QualifiedName(pkg = "kotlin.collections", name = "List"), null),
+    LIST(QualifiedName(pkg = "kotlin.collections", name = "List"), "Object"),
     LONG(QualifiedName(pkg = "kotlin", name = "Long"), "Long"),
     LOCAL_DATE(QualifiedName(pkg = "java.time", name = "LocalDate"), "Object"),
     LOCAL_DATE_TIME(QualifiedName(pkg = "java.time", name = "LocalDateTime"), "Object"),

@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     kotlin("jvm")
     kotlin("kapt")
+    kotlin("plugin.serialization")
     id("com.bnorm.power.kotlin-power-assert") version "0.5.3"
     idea
     application
@@ -20,6 +21,7 @@ java.sourceCompatibility = JavaVersion.VERSION_1_8
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.0.0")
     implementation(project(":orm"))
     implementation("org.postgresql:postgresql:42.2.18")
     implementation("com.zaxxer:HikariCP:3.4.5")

@@ -52,6 +52,7 @@ private fun objectConstructor(
             columnName = column.column.name,
             fieldName = parentField,
             fieldType = column.type.klass.name,
+            isJson = column.column.type == PostgresType.JSONB
         )
     } else {
         ObjectConstructor.Constructor(
@@ -124,6 +125,7 @@ fun KlassFunction.toQueryMethodWhere(mappedKlass: TableMapping): QueryMethod {
                 position = i + 1,
                 setterType = KotlinType.of(it.type.klass.name)?.jdbcSetterName
                     ?: error("cannot map to KotlinType: ${it.type.klass.name}"),
+                isJson = false
             )
         },
     )
@@ -166,6 +168,7 @@ fun KlassFunction.toQueryMethod(mappedKlass: TableMapping): QueryMethod {
                 position = i + 1,
                 setterType = KotlinType.of(c.type.klass.name)?.jdbcSetterName
                     ?: error("cannot map to KotlinType: ${c.type.klass.name}"),
+                isJson = c.column.type == PostgresType.JSONB
             )
         },
         returnType = returnType,
@@ -196,6 +199,7 @@ private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
             setterType = KotlinType.of(it.type.klass.name)?.jdbcSetterName
                 ?: error("cannot map to KotlinType: ${it.type.klass.name}"),
             path = it.path.joinToString("."),
+            isJson = it.column.type == PostgresType.JSONB
         )
     }
     return QueryMethod(

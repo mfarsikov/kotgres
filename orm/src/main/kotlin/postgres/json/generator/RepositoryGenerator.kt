@@ -185,14 +185,22 @@ private fun CodeBlockBuilder.generateConstructorCall(c: ObjectConstructor, isTop
             addStatement(")$trailingComma")
         }
         is ObjectConstructor.Extractor -> {
-            if(c.resultSetGetterName == "Object") {
+            if (c.isJson) {
+                addStatement(
+                    "%L = %M.%M(it.getString(%S)),",
+                    c.fieldName,
+                    MemberName("kotlinx.serialization.json", "Json"),
+                    MemberName("kotlinx.serialization", "decodeFromString"),
+                    c.columnName,
+                )
+            } else if (c.resultSetGetterName == "Object") {
                 addStatement(
                     "%L = it.getObject(%S, %M::class.java),",
                     c.fieldName,
                     c.columnName,
                     MemberName(c.fieldType.pkg, c.fieldType.name)
                 )
-            }else{
+            } else {
                 addStatement(
                     "%L = it.get${c.resultSetGetterName}(%S),",
                     c.fieldName,
@@ -216,11 +224,22 @@ private fun TypeSpecBuilder.generateSaveAllFunction(repo: Repo) {
             controlFlow("connection.prepareStatement(query).use") {
                 `for`("item in items") {
                     for (param in repo.saveAllMethod.queryParameters) {
-                        addStatement(
-                            "it.set${param.setterType}(%L, item.%L)",
-                            param.position,
-                            param.path
-                        )
+                        if (param.isJson) {
+                            addStatement(
+                                """it.setObject(%L, %M().apply { type = "jsonb"; value = %M.%M(item.%L) })""",
+                                param.position,
+                                MemberName("org.postgresql.util", "PGobject"),
+                                MemberName("kotlinx.serialization.json", "Json"),
+                                MemberName("kotlinx.serialization", "encodeToString"),
+                                param.path,
+                            )
+                        } else {
+                            addStatement(
+                                "it.set${param.setterType}(%L, item.%L)",
+                                param.position,
+                                param.path
+                            )
+                        }
                     }
                     addStatement("it.addBatch()")
                 }

@@ -27,6 +27,7 @@ data class QueryParameter(
     val type: Type,
     val setterType: String,
     val path: String,
+    val isJson: Boolean,
 )
 
 sealed class ObjectConstructor {
@@ -41,5 +42,6 @@ sealed class ObjectConstructor {
         val columnName: String,
         val fieldName: String?,
         val fieldType: QualifiedName,
+        val isJson: Boolean,
     ) : ObjectConstructor()
 }

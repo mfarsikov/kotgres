@@ -49,6 +49,7 @@ class RepositoryTest {
             time = Time.valueOf(LocalTime.parse("00:00:00")),
             localDate = LocalDate.parse("2010-01-01"),
             localDateTime = LocalDateTime.parse("2010-01-01T00:00:00"),
+            list = listOf("a", "b", "c"),
         )
     }
 

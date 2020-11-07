@@ -23,39 +23,27 @@ import javax.sql.DataSource
 
 data class Iphone(
     @Id
-    @Column(type = PostgresType.TEXT)
     val id: String,
-    @Column(type = PostgresType.TEXT)
     val name: String,
     val spec: Spec,
-    @Column(type = PostgresType.INTEGER)
     val version: Int,
-    @Column(type = PostgresType.BOOLEAN)
     val bool: Boolean,
-    @Column(name = "date", PostgresType.DATE)
     val date: Date,
-    @Column(type = PostgresType.TIMESTAMP_WITH_TIMEZONE)
     val timestamp: Timestamp,
-    @Column(type = PostgresType.UUID)
     val uuid: UUID,
-    @Column(type = PostgresType.TIME)
     val time: LocalTime,
-    @Column(type = PostgresType.DATE)
     val localDate: LocalDate,
-    @Column(type = PostgresType.TIMESTAMP)
     val localDateTime: LocalDateTime,
-    @Column(type = PostgresType.JSONB)
     val list: List<String>
 )
 
 data class Spec(
-    @Column(type = PostgresType.TEXT)
     val proc: String,
     val battery: Battery,
 )
 
 data class Battery(
-    @Column(name = "cap_city", type = PostgresType.TEXT)
+    @Column(name = "cap_city")
     val capacity: String,
     @Column(type = PostgresType.TEXT)
     val longivity: String,

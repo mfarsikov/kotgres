@@ -11,7 +11,6 @@ import postgres.json.lib.Id
 import postgres.json.lib.PostgresRepository
 import postgres.json.lib.Table
 import postgres.json.lib.Where
-import postgres.json.model.db.PostgresType
 import postgres.json.model.klass.Field
 import postgres.json.model.klass.FunctionParameter
 import postgres.json.model.klass.Klass
@@ -211,26 +210,3 @@ enum class KotlinType(val qn: QualifiedName, val jdbcSetterName: String?) {
         }
     }
 }
-
-val kotlinTypeToPostgresTypeMapping = mapOf(
-    KotlinType.BIG_DECIMAL to PostgresType.NUMERIC,
-    KotlinType.BOOLEAN to PostgresType.BOOLEAN,
-    KotlinType.BYTE_ARRAY to PostgresType.BYTEA,
-    KotlinType.DATE to PostgresType.DATE,
-    KotlinType.DOUBLE to PostgresType.DOUBLE,
-    KotlinType.FLOAT to PostgresType.REAL,
-    KotlinType.INSTANT to PostgresType.TIMESTAMP_WITH_TIMEZONE,
-    KotlinType.INT to PostgresType.INTEGER,
-    KotlinType.LIST to PostgresType.JSONB,
-    KotlinType.LONG to PostgresType.BIGINT,
-    KotlinType.LOCAL_DATE to PostgresType.DATE,
-    KotlinType.LOCAL_DATE_TIME to PostgresType.TIMESTAMP,
-    KotlinType.LOCAL_TIME to PostgresType.TIME,
-    KotlinType.MAP to PostgresType.JSONB,
-    KotlinType.MUTABLE_LIST to PostgresType.JSONB,
-    KotlinType.MUTABLE_MAP to PostgresType.JSONB,
-    KotlinType.STRING to PostgresType.TEXT,
-    KotlinType.TIME to PostgresType.TIME,
-    KotlinType.TIMESTAMP to PostgresType.TIMESTAMP_WITH_TIMEZONE,
-    KotlinType.UUID to PostgresType.UUID,
-)

@@ -1,5 +1,7 @@
 package postgres.json.model.klass
 
+import javax.lang.model.element.Element
+
 data class QualifiedName(
     val pkg: String,
     val name: String,
@@ -14,6 +16,8 @@ data class Klass(
     val annotations: List<Annotation> = emptyList(),
     val isInterface: Boolean = false,
     val functions: List<KlassFunction> = emptyList(),
+    val element: Element? = null,
+    val superclassParameter: Type? = null
 )
 
 data class Field(

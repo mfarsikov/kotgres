@@ -21,7 +21,6 @@ import java.time.LocalTime
 import java.util.*
 import javax.sql.DataSource
 
-@Table
 data class Iphone(
     @Id
     @Column(type = PostgresType.TEXT)

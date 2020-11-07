@@ -70,7 +70,8 @@ private fun objectConstructor(
     }
 }
 
-fun Klass.toRepo(mapped: Klass): Repo {
+fun Klass.toRepo(): Repo {
+    val mapped = superclassParameter?.klass!!
     val mappedKlass = mapped.toTableMapping()
 
     val (withWhere, withoutWhere) = functions.partition { it.annotationConfigs.any { it is Where } }

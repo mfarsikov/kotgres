@@ -7,7 +7,6 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import java.sql.Date
-import java.sql.Time
 import java.sql.Timestamp
 import java.time.Instant
 import java.time.LocalDate
@@ -31,12 +30,12 @@ class RepositoryTest {
             Flyway.configure().dataSource(ds).load().migrate()
         }
 
-        val phone = Iphone(
+        val phone = MyClass(
             id = "13",
             name = "iphone13",
-            spec = Spec(
+            myNestedClass = MyNestedClass(
                 proc = "bionic13",
-                battery = Battery(
+                myNestedNestedClass = MyNestedNestedClass(
                     capacity = "13wh",
                     longivity = "13h"
                 )
@@ -118,6 +117,17 @@ class RepositoryTest {
     }
 
     @Test
+    fun update(){
+
+        db.transaction { iphoneRepository.save(phone) }
+        db.transaction { iphoneRepository.save(phone.copy(name = "iphone2")) }
+
+        val phones = db.transaction(readOnly = true) { iphoneRepository.findAll() }
+
+        assert(phones == listOf(phone.copy(name = "iphone2")))
+    }
+
+    @Test
     fun `query method returns an entity`() {
         db.transaction { iphoneRepository.save(phone) }
 
@@ -183,8 +193,8 @@ class RepositoryTest {
             { assert(`test @Where`("13wh", 13, "2010-01-01") == listOf(phone)) },
             { assert(`test @Where`("13wh", 13, "2010-01-02") == listOf(phone)) },
             { assert(`test @Where`("13wh", 12, "2010-01-02") == listOf(phone)) },
-            { assert(`test @Where`("12wh", 12, "2010-01-02") == emptyList<Iphone>()) },
-            { assert(`test @Where`("13wh", 12, "2009-01-01") == emptyList<Iphone>()) },
+            { assert(`test @Where`("12wh", 12, "2010-01-02") == emptyList<MyClass>()) },
+            { assert(`test @Where`("13wh", 12, "2009-01-01") == emptyList<MyClass>()) },
         )
     }
 
@@ -197,7 +207,7 @@ class RepositoryTest {
 
         all(
             { assert(`find by timestamp`("2010-01-01T00:00:00.000Z") == listOf(phone)) },
-            { assert(`find by timestamp`("2010-01-01T00:00:00.001Z") == emptyList<Iphone>()) },
+            { assert(`find by timestamp`("2010-01-01T00:00:00.001Z") == emptyList<MyClass>()) },
         )
     }
 
@@ -223,7 +233,7 @@ class RepositoryTest {
 
         all(
             { assert(`find by time`("00:00:00") == listOf(phone) )},
-            { assert(`find by time`("00:00:01") == emptyList<Iphone>()) },
+            { assert(`find by time`("00:00:01") == emptyList<MyClass>()) },
         )
     }
     @Test
@@ -235,7 +245,7 @@ class RepositoryTest {
 
         all(
             { assert(`find by local date`("2010-01-01") == listOf(phone) )},
-            { assert(`find by local date`("2010-01-02") == emptyList<Iphone>()) },
+            { assert(`find by local date`("2010-01-02") == emptyList<MyClass>()) },
         )
     }
     @Test
@@ -247,7 +257,7 @@ class RepositoryTest {
 
         all(
             { assert(`find by local date time`("2010-01-01T00:00:00") == listOf(phone) )},
-            { assert(`find by local date time`("2010-01-02T00:00:00") == emptyList<Iphone>()) },
+            { assert(`find by local date time`("2010-01-02T00:00:00") == emptyList<MyClass>()) },
         )
     }
 }

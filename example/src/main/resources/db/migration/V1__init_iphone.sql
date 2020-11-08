@@ -1,4 +1,4 @@
-create table "iphone"
+create table "my_class"
 (
     "id"              text primary key,
     "name"            text                        not null,

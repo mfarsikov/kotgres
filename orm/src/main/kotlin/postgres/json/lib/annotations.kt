@@ -14,8 +14,6 @@ annotation class Table(
 annotation class Column(
     val name: String = "",
     val type: PostgresType = PostgresType.NONE,
-    val toSqlFunction: String = "",
-    val fromSqlFunction: String = ""
 )
 
 @Target(AnnotationTarget.CLASS)

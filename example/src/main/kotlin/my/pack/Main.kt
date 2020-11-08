@@ -2,18 +2,15 @@ package my.pack
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import org.flywaydb.core.Flyway
 import org.intellij.lang.annotations.Language
 import org.postgresql.util.PGobject
 import postgres.json.lib.Column
 import postgres.json.lib.Id
 import postgres.json.lib.PostgresRepository
 import postgres.json.lib.Repository
-import postgres.json.lib.Table
 import postgres.json.lib.Where
 import postgres.json.model.db.PostgresType
 import java.sql.Date
-import java.sql.Time
 import java.sql.Timestamp
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -21,11 +18,11 @@ import java.time.LocalTime
 import java.util.*
 import javax.sql.DataSource
 
-data class Iphone(
+data class MyClass(
     @Id
     val id: String,
     val name: String,
-    val spec: Spec,
+    val myNestedClass: MyNestedClass,
     val version: Int,
     val bool: Boolean,
     val date: Date,
@@ -37,12 +34,12 @@ data class Iphone(
     val list: List<String>
 )
 
-data class Spec(
+data class MyNestedClass(
     val proc: String,
-    val battery: Battery,
+    val myNestedNestedClass: MyNestedNestedClass,
 )
 
-data class Battery(
+data class MyNestedNestedClass(
     @Column(name = "cap_city")
     val capacity: String,
     @Column(type = PostgresType.TEXT)
@@ -50,25 +47,25 @@ data class Battery(
 )
 
 @PostgresRepository
-interface IphoneRepository : Repository<Iphone> {
+interface IphoneRepository : Repository<MyClass> {
 
-    fun findById(id: String): Iphone?
-    fun findByDate(date: Date): List<Iphone>
-    fun findByIdOrThrow(id: String): Iphone
-    fun findBySpecProc(proc: String): List<Iphone>
-    fun findSingleBySpecProc(proc: String): Iphone
-    fun findByIdAndVersion(id: String, version: Int): Iphone?
-    fun findByTimestamp(timestamp: Timestamp): List<Iphone>
-    fun findByUUID(uuid: UUID): Iphone?
-    fun findByTime(time: LocalTime): List<Iphone>
-    fun findByLocalDate(localDate: LocalDate): List<Iphone>
-    fun findByLocalDateTime(localDateTime: LocalDateTime): List<Iphone>
+    fun findById(id: String): MyClass?
+    fun findByDate(date: Date): List<MyClass>
+    fun findByIdOrThrow(id: String): MyClass
+    fun findBySpecProc(proc: String): List<MyClass>
+    fun findSingleBySpecProc(proc: String): MyClass
+    fun findByIdAndVersion(id: String, version: Int): MyClass?
+    fun findByTimestamp(timestamp: Timestamp): List<MyClass>
+    fun findByUUID(uuid: UUID): MyClass?
+    fun findByTime(time: LocalTime): List<MyClass>
+    fun findByLocalDate(localDate: LocalDate): List<MyClass>
+    fun findByLocalDateTime(localDateTime: LocalDateTime): List<MyClass>
 
     fun delete(id: String, date: Date)
     fun deleteByDate(date: Date)
 
     @Where("cap_city = :capacity and :v <= version and date <= :date")
-    fun findByCapacityAndVersion(capacity: String, v: Int, date: Date): List<Iphone>
+    fun findByCapacityAndVersion(capacity: String, v: Int, date: Date): List<MyClass>
 
 }
 

@@ -22,7 +22,7 @@ import postgres.json.parser.KotlinType
 // ex: `:firstName`
 val parameterPlaceholderRegex = Regex(":\\w*")
 
-fun Klass.toTableMapping(): TableMapping {
+private fun Klass.toTableMapping(): TableMapping {
     val tableName = annotations.filterIsInstance<Table>()
         .singleOrNull()
         ?.name
@@ -30,6 +30,7 @@ fun Klass.toTableMapping(): TableMapping {
         ?: name.name.camelToSnakeCase()
 
     val columns = flattenToColumns(this)
+
     return TableMapping(
         name = tableName,
         klass = this,
@@ -91,7 +92,7 @@ fun Klass.toRepo(): Repo {
 }
 
 
-fun KlassFunction.toQueryMethodWhere(mappedKlass: TableMapping): QueryMethod {
+private fun KlassFunction.toQueryMethodWhere(mappedKlass: TableMapping): QueryMethod {
 
     val parametersByName = parameters.associateBy { it.name }
 
@@ -132,7 +133,7 @@ fun KlassFunction.toQueryMethodWhere(mappedKlass: TableMapping): QueryMethod {
     )
 }
 
-fun KlassFunction.toQueryMethod(mappedKlass: TableMapping): QueryMethod {
+private fun KlassFunction.toQueryMethod(mappedKlass: TableMapping): QueryMethod {
 
     val columnsByFieldName = mappedKlass.columns.associateBy { it.path.last() }
 

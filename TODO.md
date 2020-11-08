@@ -10,14 +10,14 @@
 * detect cycles
 
 ### Converters
-* custom type converters
+* custom type converters?
 
 ### Migrations
 * generate migration scripts (flyway)
 
 ### Nested objects
 * one to one mappings using joined table
-* one to many mapping using JSON
+* one to many mapping using JSON √
 * one to many using additional select per collection
 
 ### Querying
@@ -56,7 +56,7 @@
 * naming strategy?
 
 ### Annotations
-* make `@Table` annotation optional (detect entities by repository type parameter)
+* make `@Table` annotation optional (detect entities by repository type parameter) √
 * support javax.persistence?
 * support spring
 

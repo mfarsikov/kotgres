@@ -1,4 +1,4 @@
-package postgres.json
+package kotgres
 
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -8,7 +8,7 @@ import javax.tools.Diagnostic
 class Logger {
     companion object {
         lateinit var messager: Messager
-        var logLevel: LogLevel = LogLevel.TRACE
+        var logLevel: LogLevel = LogLevel.WARN
 
         fun debug(s: Any) {
             if (logLevel.ordinal <= LogLevel.DEBUG.ordinal) messager.printMessage(Diagnostic.Kind.NOTE, "$s\r")

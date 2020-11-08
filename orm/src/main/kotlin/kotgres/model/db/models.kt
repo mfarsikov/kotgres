@@ -1,14 +1,14 @@
-package postgres.json.model.db
+package kotgres.model.db
 
-import postgres.json.model.klass.Klass
-import postgres.json.model.klass.Type
-import postgres.json.model.repository.ObjectConstructor
+import kotgres.model.klass.Klass
+import kotgres.model.klass.Type
+import kotgres.model.repository.ObjectConstructor
 
 data class TableMapping(
     val name: String,
     val klass: Klass,
     val columns: List<ColumnMapping>,
-    val objectConstructor:ObjectConstructor,
+    val objectConstructor: ObjectConstructor,
 )
 
 data class ColumnMapping(

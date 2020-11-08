@@ -1,26 +1,40 @@
-package postgres.json.mapper
+package kotgres.mapper
 
-import postgres.json.lib.Column
-import postgres.json.lib.Id
-import postgres.json.lib.Table
-import postgres.json.lib.Where
-import postgres.json.model.db.ColumnDefinition
-import postgres.json.model.db.ColumnMapping
-import postgres.json.model.db.PostgresType
-import postgres.json.model.db.TableMapping
-import postgres.json.model.klass.Klass
-import postgres.json.model.klass.KlassFunction
-import postgres.json.model.klass.Nullability
-import postgres.json.model.klass.QualifiedName
-import postgres.json.model.klass.Type
-import postgres.json.model.repository.ObjectConstructor
-import postgres.json.model.repository.QueryMethod
-import postgres.json.model.repository.QueryParameter
-import postgres.json.model.repository.Repo
-import postgres.json.parser.KotlinType
+import kotgres.lib.Column
+import kotgres.lib.Id
+import kotgres.lib.Table
+import kotgres.lib.Where
+import kotgres.model.db.ColumnDefinition
+import kotgres.model.db.ColumnMapping
+import kotgres.model.db.PostgresType
+import kotgres.model.db.TableMapping
+import kotgres.model.klass.Field
+import kotgres.model.klass.Klass
+import kotgres.model.klass.KlassFunction
+import kotgres.model.klass.Nullability
+import kotgres.model.klass.QualifiedName
+import kotgres.model.klass.Type
+import kotgres.model.repository.ObjectConstructor
+import kotgres.model.repository.QueryMethod
+import kotgres.model.repository.QueryParameter
+import kotgres.model.repository.Repo
+import kotgres.parser.KotlinType
 
 // ex: `:firstName`
 val parameterPlaceholderRegex = Regex(":\\w*")
+
+fun validationErrors(klass: Klass): List<String> {
+    val entityKlass = klass.superclassParameter?.klass!!
+
+    return entityKlass.fields.flatMap { checkFieldTypes(entityKlass, it.type.klass, listOf(it.name)) }
+}
+
+private fun checkFieldTypes(rootKlass: Klass, klass: Klass, path: List<String>): List<String> {
+    if (KotlinType.of(klass.name) != null) return emptyList()
+    if (klass.isEnum) return emptyList()
+    if (klass.fields.isEmpty()) return listOf("Unsupported field type [${rootKlass.name}.${path.joinToString(".")}: ${klass.name}]")
+    return klass.fields.flatMap { checkFieldTypes(rootKlass, it.type.klass, path + it.name) }
+}
 
 private fun Klass.toTableMapping(): TableMapping {
     val tableName = annotations.filterIsInstance<Table>()
@@ -47,13 +61,15 @@ private fun objectConstructor(
 ): ObjectConstructor {
     return if (klass.fields.isEmpty()) {
         val column = columns.single { it.path == path }
+
+        column.type.klass.isEnum
         ObjectConstructor.Extractor(
-            resultSetGetterName = KotlinType.of(column.type.klass.name)?.jdbcSetterName
-                ?: error("cannot map to KotlinType: ${column.type.klass.name}"),
+            resultSetGetterName = getterSetterName(column),
             columnName = column.column.name,
             fieldName = parentField,
             fieldType = column.type.klass.name,
-            isJson = column.column.type == PostgresType.JSONB
+            isJson = column.column.type == PostgresType.JSONB,
+            isEnum = column.type.klass.isEnum,
         )
     } else {
         ObjectConstructor.Constructor(
@@ -69,6 +85,11 @@ private fun objectConstructor(
             }
         )
     }
+}
+
+fun getterSetterName(column:ColumnMapping):String{
+    return if (column.type.klass.isEnum) "String" else KotlinType.of(column.type.klass.name)?.jdbcSetterName
+        ?: error("cannot map to KotlinType: ${column.type.klass.name}")
 }
 
 fun Klass.toRepo(): Repo {
@@ -127,7 +148,8 @@ private fun KlassFunction.toQueryMethodWhere(mappedKlass: TableMapping): QueryMe
                 position = i + 1,
                 setterType = KotlinType.of(it.type.klass.name)?.jdbcSetterName
                     ?: error("cannot map to KotlinType: ${it.type.klass.name}"),
-                isJson = false
+                isJson = false,
+                isEnum = it.type.klass.isEnum,
             )
         },
     )
@@ -168,9 +190,9 @@ private fun KlassFunction.toQueryMethod(mappedKlass: TableMapping): QueryMethod 
                 path = parameters[i].name,
                 type = c.type,
                 position = i + 1,
-                setterType = KotlinType.of(c.type.klass.name)?.jdbcSetterName
-                    ?: error("cannot map to KotlinType: ${c.type.klass.name}"),
-                isJson = c.column.type == PostgresType.JSONB
+                setterType = getterSetterName(c),
+                isJson = c.column.type == PostgresType.JSONB,
+                isEnum = c.type.klass.isEnum,
             )
         },
         returnType = returnType,
@@ -198,10 +220,10 @@ private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
         QueryParameter(
             position = i + 1,
             type = it.type,
-            setterType = KotlinType.of(it.type.klass.name)?.jdbcSetterName
-                ?: error("cannot map to KotlinType: ${it.type.klass.name}"),
+            setterType = getterSetterName(it),
             path = it.path.joinToString("."),
-            isJson = it.column.type == PostgresType.JSONB
+            isJson = it.column.type == PostgresType.JSONB,
+            isEnum = it.type.klass.isEnum,
         )
     }
     return QueryMethod(
@@ -248,8 +270,7 @@ private fun flattenToColumns(klass: Klass, path: List<String> = emptyList()): Li
     return klass.fields.flatMap { field ->
         val columnAnnotation = field.annotations.filterIsInstance<Column>().singleOrNull()
 
-        val colType: PostgresType? = columnAnnotation?.type.takeIf { it != PostgresType.NONE }
-        ?: KotlinType.of(field.type.klass.name)?.let{kotlinTypeToPostgresTypeMapping[it]}
+        val colType: PostgresType? = extractPostrgresType(columnAnnotation, field)
 
         when {
             colType == null && field.type.klass.fields.isEmpty() -> {
@@ -275,6 +296,24 @@ private fun flattenToColumns(klass: Klass, path: List<String> = emptyList()): Li
     }
 }
 
+private fun extractPostrgresType(
+    columnAnnotation: Column?,
+    field: Field
+): PostgresType? {
+    val type = columnAnnotation?.type ?: PostgresType.NONE
+    if (type != PostgresType.NONE) {
+        return type
+    }
+    val type2 = KotlinType.of(field.type.klass.name)?.let { kotlinTypeToPostgresTypeMapping[it] }
+    if (type2 != null) {
+        return type2
+    }
+    if (field.type.klass.isEnum) {
+        return PostgresType.TEXT
+    }
+    return null
+}
+
 val kotlinTypeToPostgresTypeMapping = mapOf(
     KotlinType.BIG_DECIMAL to PostgresType.NUMERIC,
     KotlinType.BOOLEAN to PostgresType.BOOLEAN,
@@ -282,7 +321,6 @@ val kotlinTypeToPostgresTypeMapping = mapOf(
     KotlinType.DATE to PostgresType.DATE,
     KotlinType.DOUBLE to PostgresType.DOUBLE,
     KotlinType.FLOAT to PostgresType.REAL,
-    KotlinType.INSTANT to PostgresType.TIMESTAMP_WITH_TIMEZONE,
     KotlinType.INT to PostgresType.INTEGER,
     KotlinType.LIST to PostgresType.JSONB,
     KotlinType.LONG to PostgresType.BIGINT,
@@ -290,10 +328,14 @@ val kotlinTypeToPostgresTypeMapping = mapOf(
     KotlinType.LOCAL_DATE_TIME to PostgresType.TIMESTAMP,
     KotlinType.LOCAL_TIME to PostgresType.TIME,
     KotlinType.MAP to PostgresType.JSONB,
-    KotlinType.MUTABLE_LIST to PostgresType.JSONB,
-    KotlinType.MUTABLE_MAP to PostgresType.JSONB,
     KotlinType.STRING to PostgresType.TEXT,
     KotlinType.TIME to PostgresType.TIME,
     KotlinType.TIMESTAMP to PostgresType.TIMESTAMP_WITH_TIMEZONE,
     KotlinType.UUID to PostgresType.UUID,
 )
+
+fun main() {
+    kotlinTypeToPostgresTypeMapping.forEach { a, b ->
+        println(a.qn.toString() + " | " + b.value)
+    }
+}

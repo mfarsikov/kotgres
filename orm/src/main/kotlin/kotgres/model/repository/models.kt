@@ -1,9 +1,9 @@
-package postgres.json.model.repository
+package kotgres.model.repository
 
-import postgres.json.model.db.TableMapping
-import postgres.json.model.klass.Klass
-import postgres.json.model.klass.QualifiedName
-import postgres.json.model.klass.Type
+import kotgres.model.db.TableMapping
+import kotgres.model.klass.Klass
+import kotgres.model.klass.QualifiedName
+import kotgres.model.klass.Type
 
 data class Repo(
     val superKlass: Klass,
@@ -28,6 +28,7 @@ data class QueryParameter(
     val setterType: String,
     val path: String,
     val isJson: Boolean,
+    val isEnum: Boolean,
 )
 
 sealed class ObjectConstructor {
@@ -43,5 +44,6 @@ sealed class ObjectConstructor {
         val fieldName: String?,
         val fieldType: QualifiedName,
         val isJson: Boolean,
+        val isEnum: Boolean,
     ) : ObjectConstructor()
 }

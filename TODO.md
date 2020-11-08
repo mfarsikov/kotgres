@@ -10,15 +10,16 @@
 * detect cycles
 
 ### Converters
-* custom type converters?
+* custom type converters? Most probably it is not needed. Could be solved by using kewt-mapping
 
 ### Migrations
 * generate migration scripts (flyway)
 
 ### Nested objects
-* one to one mappings using joined table
+* ~~one to one mappings using joined table~~
 * one to many mapping using JSON √
-* one to many using additional select per collection
+* ~~one to many using additional select per collection~~
+* Enums
 
 ### Querying
 * custom queries:
@@ -52,13 +53,13 @@
 
 ### Naming
 * convert db names to snake case √
-* include parent name into db name? (could easily exceed 63 symbols restriction)
+* ~~include parent name into db name?~~ (could easily exceed 63 symbols restriction)
 * naming strategy?
 
 ### Annotations
 * make `@Table` annotation optional (detect entities by repository type parameter) √
-* support javax.persistence?
-* support spring
+* support javax.persistence? (`@Id`?)
+* support Spring
 
 ### Mapping declaration
 * annotations √

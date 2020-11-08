@@ -1,7 +1,7 @@
-package postgres.json.lib
+package kotgres.lib
 
-import postgres.json.model.db.ColumnDefinition
-import postgres.json.model.db.PostgresType
+import kotgres.model.db.ColumnDefinition
+import kotgres.model.db.PostgresType
 import java.sql.Connection
 
 object Checker {
@@ -59,12 +59,12 @@ object Checker {
         val missingErrors = missingColumns
             .takeIf { it.isNotEmpty() }
             ?.joinToString(prefix = "(", separator = ", ", postfix = ")")
-            ?.let { "Missing columns: table t $it" }
+            ?.let { "Missing columns: table $tableName $it" }
 
         val extraErrors = extraColumns
             .takeIf { it.isNotEmpty() }
             ?.joinToString(prefix = "(", separator = ", ", postfix = ")")
-            ?.let { "Extra columns: table t $it" }
+            ?.let { "Extra columns: table $tableName $it" }
 
         return listOfNotNull(missingErrors, extraErrors).joinToString("; ").takeIf { it.isNotEmpty() }
     }

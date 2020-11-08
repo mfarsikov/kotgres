@@ -1,14 +1,15 @@
-package postgres.json
+package kotgres
 
-import postgres.json.generator.DbDescription
-import postgres.json.generator.generateDb
-import postgres.json.generator.generateRepository
-import postgres.json.lib.PostgresRepository
-import postgres.json.lib.Table
-import postgres.json.mapper.toRepo
-import postgres.json.model.klass.Klass
-import postgres.json.model.repository.Repo
-import postgres.json.parser.Parser
+import kotgres.generator.DbDescription
+import kotgres.generator.generateDb
+import kotgres.generator.generateRepository
+import kotgres.lib.PostgresRepository
+import kotgres.lib.Table
+import kotgres.mapper.toRepo
+import kotgres.mapper.validationErrors
+import kotgres.model.klass.Klass
+import kotgres.model.repository.Repo
+import kotgres.parser.Parser
 import javax.annotation.processing.AbstractProcessor
 import javax.annotation.processing.ProcessingEnvironment
 import javax.annotation.processing.RoundEnvironment
@@ -18,8 +19,12 @@ import javax.lang.model.element.TypeElement
 import javax.tools.StandardLocation
 
 class Processor : AbstractProcessor() {
+    var dbQualifiedName: String? = null
     override fun getSupportedSourceVersion() = SourceVersion.latestSupported()
-    override fun getSupportedOptions() = emptySet<String>()
+    override fun getSupportedOptions() = setOf(
+        "kotgres.log.level",
+        "kotgres.db.qualifiedName"
+    )
 
     override fun getSupportedAnnotationTypes() =
         setOf(Table::class, PostgresRepository::class).mapTo(mutableSetOf()) { it.qualifiedName }
@@ -28,6 +33,12 @@ class Processor : AbstractProcessor() {
         super.init(processingEnv)
 
         Logger.messager = processingEnv.messager
+        processingEnv.options["kotgres.log.level"]
+            ?.also { Logger.logLevel = Logger.LogLevel.valueOf(it.toUpperCase()) }
+
+
+        dbQualifiedName = processingEnv.options["kotgres.db.qualifiedName"]
+        if (dbQualifiedName == null) Logger.error("kotgres.db.qualifiedName is not specified")
     }
 
     override fun process(annotations: Set<TypeElement>, roundEnv: RoundEnvironment): Boolean {
@@ -42,7 +53,15 @@ class Processor : AbstractProcessor() {
         repositories.forEach { repoElement ->
             val parsedRepo = parser.parse(repoElement)
 
-            Logger.trace(parsedRepo)
+            Logger.trace("Parsed repository: $parsedRepo")
+
+            val errors = validationErrors(parsedRepo)
+
+            if (errors.isNotEmpty()) {
+                errors.forEach { Logger.error(it) }
+                return@forEach
+            }
+
             val repo = parsedRepo.toRepo()
             repos += repo
             val repoFile = generateRepository(repo)
@@ -61,8 +80,8 @@ class Processor : AbstractProcessor() {
 
         val dbFile = generateDb(
             dbDescription = DbDescription(
-                pkg = "my.pack",
-                name = "DB",
+                pkg = dbQualifiedName!!.substringBeforeLast("."),
+                name = dbQualifiedName!!.substringAfterLast("."),
                 repositories = repos
             )
         )

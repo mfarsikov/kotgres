@@ -49,6 +49,7 @@ class RepositoryTest {
             localDate = LocalDate.parse("2010-01-01"),
             localDateTime = LocalDateTime.parse("2010-01-01T00:00:00"),
             list = listOf("a", "b", "c"),
+            enum = Mode.OFF,
         )
     }
 
@@ -56,7 +57,7 @@ class RepositoryTest {
 
     @AfterEach
     fun cleanup() {
-        db.transaction { iphoneRepository.deleteAll() }
+        db.transaction { myClassRepository.deleteAll() }
     }
 
     @Test
@@ -68,11 +69,11 @@ class RepositoryTest {
     fun rollback() {
 
         db.transaction {
-            iphoneRepository.save(phone)
+            myClassRepository.save(phone)
             rollback()
         }
 
-        val phones = db.transaction(readOnly = true) { iphoneRepository.findAll() }
+        val phones = db.transaction(readOnly = true) { myClassRepository.findAll() }
         assert(phones.isEmpty()) { "rollback does not work" }
     }
 
@@ -80,13 +81,13 @@ class RepositoryTest {
     fun `rollback on exception`() {
         try {
             db.transaction {
-                iphoneRepository.save(phone)
+                myClassRepository.save(phone)
                 error("")
             }
         } catch (ex: IllegalStateException) {
         }
 
-        val phones = db.transaction(readOnly = true) { iphoneRepository.findAll() }
+        val phones = db.transaction(readOnly = true) { myClassRepository.findAll() }
         assert(phones.isEmpty())
     }
 
@@ -94,10 +95,10 @@ class RepositoryTest {
     fun save() {
 
         db.transaction {
-            iphoneRepository.save(phone)
+            myClassRepository.save(phone)
         }
 
-        val phones2 = db.transaction(readOnly = true) { iphoneRepository.findAll() }
+        val phones2 = db.transaction(readOnly = true) { myClassRepository.findAll() }
 
         assert(phones2 == listOf(phone))
     }
@@ -108,10 +109,11 @@ class RepositoryTest {
         val phones = listOf(phone, phone.copy(id = "14"))
 
         db.transaction {
-            iphoneRepository.saveAll(phones)
+            myClassRepository.saveAll(phones)
+
         }
 
-        val phones2 = db.transaction(readOnly = true) { iphoneRepository.findAll() }
+        val phones2 = db.transaction(readOnly = true) { myClassRepository.findAll() }
 
         assert(phones2 == phones)
     }
@@ -119,36 +121,36 @@ class RepositoryTest {
     @Test
     fun update(){
 
-        db.transaction { iphoneRepository.save(phone) }
-        db.transaction { iphoneRepository.save(phone.copy(name = "iphone2")) }
+        db.transaction { myClassRepository.save(phone) }
+        db.transaction { myClassRepository.save(phone.copy(name = "iphone2")) }
 
-        val phones = db.transaction(readOnly = true) { iphoneRepository.findAll() }
+        val phones = db.transaction(readOnly = true) { myClassRepository.findAll() }
 
         assert(phones == listOf(phone.copy(name = "iphone2")))
     }
 
     @Test
     fun `query method returns an entity`() {
-        db.transaction { iphoneRepository.save(phone) }
+        db.transaction { myClassRepository.save(phone) }
 
-        val found = db.transaction(readOnly = true) { iphoneRepository.findById(phone.id) }
+        val found = db.transaction(readOnly = true) { myClassRepository.findById(phone.id) }
 
         assert(found == phone)
     }
 
     @Test()
     fun `single result query method throws if there are more than one result`() {
-        db.transaction { iphoneRepository.saveAll(listOf(phone, phone.copy(id = "14"))) }
+        db.transaction { myClassRepository.saveAll(listOf(phone, phone.copy(id = "14"))) }
 
         expect<IllegalStateException> {
-            db.transaction(readOnly = true) { iphoneRepository.findSingleBySpecProc("bionic13") }
+            db.transaction(readOnly = true) { myClassRepository.findSingleBySpecProc("bionic13") }
         }
     }
 
     @Test
     fun `nullable query method returns null if there is no result`() {
 
-        val found = db.transaction(readOnly = true) { iphoneRepository.findById(phone.id) }
+        val found = db.transaction(readOnly = true) { myClassRepository.findById(phone.id) }
 
         assert(found == null)
     }
@@ -156,16 +158,16 @@ class RepositoryTest {
     @Test
     fun `not null method throws if there is no result`() {
         expect<NoSuchElementException> {
-            db.transaction(readOnly = true) { iphoneRepository.findByIdOrThrow(phone.id) }
+            db.transaction(readOnly = true) { myClassRepository.findByIdOrThrow(phone.id) }
         }
     }
 
     @Test
     fun `multiple parameters combined with AND`() {
-        db.transaction { iphoneRepository.save(phone) }
+        db.transaction { myClassRepository.save(phone) }
 
         fun `find by id and version`(id: String, version: Int) =
-            db.transaction(readOnly = true) { iphoneRepository.findByIdAndVersion(id, version) }
+            db.transaction(readOnly = true) { myClassRepository.findByIdAndVersion(id, version) }
 
         all(
             { assert(`find by id and version`("13", 13) == phone) },
@@ -175,14 +177,14 @@ class RepositoryTest {
 
     @Test
     fun `@Where annotation works`() {
-        db.transaction { iphoneRepository.save(phone) }
+        db.transaction { myClassRepository.save(phone) }
 
         fun `test @Where`(
             capacity: String,
             v: Int,
             date: String
         ) = db.transaction(readOnly = true) {
-            iphoneRepository.findByCapacityAndVersion(
+            myClassRepository.findByCapacityAndVersion(
                 capacity = capacity,
                 v = v,
                 date = Date.valueOf(LocalDate.parse(date))
@@ -200,10 +202,10 @@ class RepositoryTest {
 
     @Test
     fun `search by timestamp`() {
-        db.transaction { iphoneRepository.save(phone) }
+        db.transaction { myClassRepository.save(phone) }
 
         fun `find by timestamp`(ts: String) =
-            db.transaction { this.iphoneRepository.findByTimestamp(Timestamp.from(Instant.parse(ts))) }
+            db.transaction { this.myClassRepository.findByTimestamp(Timestamp.from(Instant.parse(ts))) }
 
         all(
             { assert(`find by timestamp`("2010-01-01T00:00:00.000Z") == listOf(phone)) },
@@ -213,10 +215,10 @@ class RepositoryTest {
 
     @Test
     fun `search by uuid`() {
-        db.transaction { iphoneRepository.save(phone) }
+        db.transaction { myClassRepository.save(phone) }
 
         fun `find by uuid`(uuid: String) =
-            db.transaction { this.iphoneRepository.findByUUID(UUID.fromString(uuid)) }
+            db.transaction { this.myClassRepository.findByUUID(UUID.fromString(uuid)) }
 
         all(
             { assert(`find by uuid`("66832deb-1864-42b1-b057-e65c28d39a4e") == phone) },
@@ -226,10 +228,10 @@ class RepositoryTest {
 
     @Test
     fun `search by time`() {
-        db.transaction { iphoneRepository.save(phone) }
+        db.transaction { myClassRepository.save(phone) }
 
         fun `find by time`(time: String) =
-            db.transaction { this.iphoneRepository.findByTime(LocalTime.parse(time)) }
+            db.transaction { this.myClassRepository.findByTime(LocalTime.parse(time)) }
 
         all(
             { assert(`find by time`("00:00:00") == listOf(phone) )},
@@ -238,10 +240,10 @@ class RepositoryTest {
     }
     @Test
     fun `search by local date`() {
-        db.transaction { iphoneRepository.save(phone) }
+        db.transaction { myClassRepository.save(phone) }
 
         fun `find by local date`(time: String) =
-            db.transaction { this.iphoneRepository.findByLocalDate(LocalDate.parse(time)) }
+            db.transaction { this.myClassRepository.findByLocalDate(LocalDate.parse(time)) }
 
         all(
             { assert(`find by local date`("2010-01-01") == listOf(phone) )},
@@ -250,14 +252,27 @@ class RepositoryTest {
     }
     @Test
     fun `search by local date time`() {
-        db.transaction { iphoneRepository.save(phone) }
+        db.transaction { myClassRepository.save(phone) }
 
         fun `find by local date time`(time: String) =
-            db.transaction { this.iphoneRepository.findByLocalDateTime(LocalDateTime.parse(time)) }
+            db.transaction { this.myClassRepository.findByLocalDateTime(LocalDateTime.parse(time)) }
 
         all(
             { assert(`find by local date time`("2010-01-01T00:00:00") == listOf(phone) )},
             { assert(`find by local date time`("2010-01-02T00:00:00") == emptyList<MyClass>()) },
+        )
+    }
+
+    @Test
+    fun `search by enum`() {
+        db.transaction { myClassRepository.save(phone) }
+
+        fun `find by enum`(mode: Mode) =
+            db.transaction { this.myClassRepository.findByMode(mode) }
+
+        all(
+            { assert(`find by enum`(Mode.OFF) == listOf(phone) )},
+            { assert(`find by enum`(Mode.ON) == emptyList<MyClass>()) },
         )
     }
 }

@@ -1,4 +1,4 @@
-package postgres.json.lib
+package kotgres.lib
 
 import java.sql.Connection
 import java.sql.Savepoint

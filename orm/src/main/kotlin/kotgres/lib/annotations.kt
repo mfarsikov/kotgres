@@ -1,6 +1,6 @@
-package postgres.json.lib
+package kotgres.lib
 
-import postgres.json.model.db.PostgresType
+import kotgres.model.db.PostgresType
 
 @Target(AnnotationTarget.FIELD)
 annotation class Id

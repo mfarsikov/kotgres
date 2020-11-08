@@ -1,4 +1,4 @@
-package postgres.json.generator
+package kotgres.generator
 
 import com.squareup.kotlinpoet.ClassName
 import com.squareup.kotlinpoet.FileSpec
@@ -16,11 +16,11 @@ import io.github.enjoydambience.kotlinbard.addFunction
 import io.github.enjoydambience.kotlinbard.buildFile
 import io.github.enjoydambience.kotlinbard.codeBlock
 import io.github.enjoydambience.kotlinbard.controlFlow
-import postgres.json.lib.Checkable
-import postgres.json.lib.DbOperations
-import postgres.json.lib.DbOperationsImpl
-import postgres.json.lib.IsolationLevel
-import postgres.json.model.repository.Repo
+import kotgres.lib.Checkable
+import kotgres.lib.DbOperations
+import kotgres.lib.DbOperationsImpl
+import kotgres.lib.IsolationLevel
+import kotgres.model.repository.Repo
 import java.sql.Connection
 import javax.annotation.Generated
 

@@ -1,4 +1,4 @@
-package postgres.json.parser
+package kotgres.parser
 
 import com.sun.tools.javac.code.Symbol
 import kotlinx.metadata.Flag
@@ -6,21 +6,22 @@ import kotlinx.metadata.KmClassifier
 import kotlinx.metadata.KmType
 import kotlinx.metadata.jvm.KotlinClassHeader
 import kotlinx.metadata.jvm.KotlinClassMetadata
-import postgres.json.lib.Column
-import postgres.json.lib.Id
-import postgres.json.lib.PostgresRepository
-import postgres.json.lib.Table
-import postgres.json.lib.Where
-import postgres.json.model.klass.Field
-import postgres.json.model.klass.FunctionParameter
-import postgres.json.model.klass.Klass
-import postgres.json.model.klass.KlassFunction
-import postgres.json.model.klass.Nullability
-import postgres.json.model.klass.QualifiedName
-import postgres.json.model.klass.Type
+import kotgres.lib.Column
+import kotgres.lib.Id
+import kotgres.lib.PostgresRepository
+import kotgres.lib.Table
+import kotgres.lib.Where
+import kotgres.model.klass.Field
+import kotgres.model.klass.FunctionParameter
+import kotgres.model.klass.Klass
+import kotgres.model.klass.KlassFunction
+import kotgres.model.klass.Nullability
+import kotgres.model.klass.QualifiedName
+import kotgres.model.klass.Type
 import javax.annotation.processing.ProcessingEnvironment
 import javax.annotation.processing.RoundEnvironment
 import javax.lang.model.element.Element
+import javax.lang.model.element.ElementKind
 
 class Parser(
     roundEnv: RoundEnvironment,
@@ -63,6 +64,16 @@ class Parser(
         val kmClass = metadata.toKmClass()
 
         element as Symbol.ClassSymbol
+
+        if(element.getKind() == ElementKind.ENUM){
+            return Klass(
+                name = QualifiedName(
+                    pkg = processingEnvironment.elementUtils.getPackageOf(element).qualifiedName.toString(),
+                    name = kmClass.name.substringAfterLast("/")
+                ),
+                isEnum = true,
+            )
+        }
 
         val superclassParam = kmClass.supertypes.firstOrNull()?.let { superclass ->
             superclass.arguments.firstOrNull().let { param -> param?.type?.toType() }
@@ -130,8 +141,8 @@ class Parser(
     private fun find(qn: QualifiedName): Klass {
         return cache.computeIfAbsent(qn) { simpleType ->
             when (simpleType) {
-                in primitives -> Klass(name = qn)
-                !in elementsByName -> error("Class $simpleType not found in sources")
+                //in primitives -> Klass(name = qn)
+                !in elementsByName ->  Klass(name = qn)
                 else -> parseInternal(elementsByName[simpleType]!!)
             }
         }
@@ -186,22 +197,19 @@ enum class KotlinType(val qn: QualifiedName, val jdbcSetterName: String?) {
     DATE(QualifiedName(pkg = "java.sql", name = "Date"), "Date"),
     DOUBLE(QualifiedName(pkg = "kotlin", name = "Double"), "Double"),
     FLOAT(QualifiedName(pkg = "kotlin", name = "Float"), "Float"),
-    INSTANT(QualifiedName(pkg = "java.time", name = "Instant"), null),
+    //INSTANT(QualifiedName(pkg = "java.time", name = "Instant"), "Object"),
     INT(QualifiedName(pkg = "kotlin", name = "Int"), "Int"),
     LIST(QualifiedName(pkg = "kotlin.collections", name = "List"), "Object"),
     LONG(QualifiedName(pkg = "kotlin", name = "Long"), "Long"),
     LOCAL_DATE(QualifiedName(pkg = "java.time", name = "LocalDate"), "Object"),
     LOCAL_DATE_TIME(QualifiedName(pkg = "java.time", name = "LocalDateTime"), "Object"),
     LOCAL_TIME(QualifiedName(pkg = "java.time", name = "LocalTime"), "Object"),
-    MAP(QualifiedName(pkg = "kotlin.collections", name = "Map"), null),
-    MUTABLE_LIST(QualifiedName(pkg = "kotlin.collections", name = "MutableList"), null),
-    MUTABLE_MAP(QualifiedName(pkg = "kotlin.collections", name = "MutableMap"), null),
+    MAP(QualifiedName(pkg = "kotlin.collections", name = "Map"), "Object"),
     STRING(QualifiedName(pkg = "kotlin", name = "String"), "String"),
     TIME(QualifiedName(pkg = "java.sql", name = "Time"), "Time"),
     TIMESTAMP(QualifiedName(pkg = "java.sql", name = "Timestamp"), "Timestamp"),
     UNIT(QualifiedName(pkg = "kotlin", name = "Unit"), null),
     UUID(QualifiedName(pkg = "java.util", name = "UUID"), "Object"),
-    ZONED_DATE_TIME(QualifiedName(pkg = "java.time", name = "ZonedDateTime"), null),
     ;
 
     companion object {

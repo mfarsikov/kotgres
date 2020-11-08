@@ -52,3 +52,9 @@ tasks.withType<KotlinCompile> {
 application {
     mainClassName = "my.pack.MainKt"
 }
+kapt {
+    arguments {
+        arg("kotgres.log.level", "debug")
+        arg("kotgres.db.qualifiedName", "my.pack.DB")
+    }
+}

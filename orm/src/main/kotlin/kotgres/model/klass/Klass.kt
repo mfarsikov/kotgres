@@ -1,4 +1,4 @@
-package postgres.json.model.klass
+package kotgres.model.klass
 
 import javax.lang.model.element.Element
 
@@ -17,7 +17,8 @@ data class Klass(
     val isInterface: Boolean = false,
     val functions: List<KlassFunction> = emptyList(),
     val element: Element? = null,
-    val superclassParameter: Type? = null
+    val superclassParameter: Type? = null,
+    val isEnum: Boolean = false,
 )
 
 data class Field(

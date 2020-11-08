@@ -1,4 +1,4 @@
-package postgres.json.mapper
+package kotgres.mapper
 
 val camelRegex = "(?<=[a-zA-Z])[A-Z]".toRegex()
 val snakeRegex = "_[a-zA-Z]".toRegex()

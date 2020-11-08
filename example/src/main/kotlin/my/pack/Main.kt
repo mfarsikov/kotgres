@@ -2,14 +2,12 @@ package my.pack
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import org.intellij.lang.annotations.Language
-import org.postgresql.util.PGobject
-import postgres.json.lib.Column
-import postgres.json.lib.Id
-import postgres.json.lib.PostgresRepository
-import postgres.json.lib.Repository
-import postgres.json.lib.Where
-import postgres.json.model.db.PostgresType
+import kotgres.lib.Column
+import kotgres.lib.Id
+import kotgres.lib.PostgresRepository
+import kotgres.lib.Repository
+import kotgres.lib.Where
+import kotgres.model.db.PostgresType
 import java.sql.Date
 import java.sql.Timestamp
 import java.time.LocalDate
@@ -31,8 +29,11 @@ data class MyClass(
     val time: LocalTime,
     val localDate: LocalDate,
     val localDateTime: LocalDateTime,
-    val list: List<String>
+    val list: List<String>,
+    val enum: Mode,
 )
+
+enum class Mode { ON, OFF }
 
 data class MyNestedClass(
     val proc: String,
@@ -47,7 +48,7 @@ data class MyNestedNestedClass(
 )
 
 @PostgresRepository
-interface IphoneRepository : Repository<MyClass> {
+interface MyClassRepository : Repository<MyClass> {
 
     fun findById(id: String): MyClass?
     fun findByDate(date: Date): List<MyClass>
@@ -60,6 +61,7 @@ interface IphoneRepository : Repository<MyClass> {
     fun findByTime(time: LocalTime): List<MyClass>
     fun findByLocalDate(localDate: LocalDate): List<MyClass>
     fun findByLocalDateTime(localDateTime: LocalDateTime): List<MyClass>
+    fun findByMode(enum: Mode): List<MyClass>
 
     fun delete(id: String, date: Date)
     fun deleteByDate(date: Date)
@@ -75,36 +77,12 @@ fun main() {
         username = "postgres"
     })
 
-   // val message = Flyway.configure().dataSource(ds).load().migrate()
+    // val message = Flyway.configure().dataSource(ds).load().migrate()
 
-    val prepareStatement = ds.connection.prepareStatement(
-        """
-                |INSERT INTO "t" 
-                |( "v")
-                |VALUES (?)
-    """.trimMargin()
-    )
+    val db = DB(ds)
 
+    db.transaction {
+        myClassRepository.saveAll(listOf())
 
-    @Language("JSON")
-    val json = """
-        {
-            "x": "Y"
-        }
-    """.trimIndent()
-
-    PGobject().apply {
-        type = "jsonb"
-        value =json
     }
-    prepareStatement.setObject(1, PGobject().apply {
-        type = "jsonb"
-        value =json
-    })
-    prepareStatement.executeUpdate()
-
-    val rs = ds.connection.prepareStatement("select v from t").executeQuery()
-rs.next()
-    println("read: " + rs.getString(1))
-
 }

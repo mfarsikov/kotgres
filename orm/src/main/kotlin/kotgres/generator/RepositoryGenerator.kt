@@ -1,4 +1,4 @@
-package postgres.json.generator
+package kotgres.generator
 
 import com.squareup.kotlinpoet.ClassName
 import com.squareup.kotlinpoet.FileSpec
@@ -21,15 +21,15 @@ import io.github.enjoydambience.kotlinbard.addFunction
 import io.github.enjoydambience.kotlinbard.buildFile
 import io.github.enjoydambience.kotlinbard.controlFlow
 import io.github.enjoydambience.kotlinbard.nullable
-import postgres.json.lib.Checker
-import postgres.json.model.klass.Klass
-import postgres.json.model.klass.Nullability
-import postgres.json.model.klass.QualifiedName
-import postgres.json.model.klass.Type
-import postgres.json.model.repository.ObjectConstructor
-import postgres.json.model.repository.QueryMethod
-import postgres.json.model.repository.Repo
-import postgres.json.parser.KotlinType
+import kotgres.lib.Checker
+import kotgres.model.klass.Klass
+import kotgres.model.klass.Nullability
+import kotgres.model.klass.QualifiedName
+import kotgres.model.klass.Type
+import kotgres.model.repository.ObjectConstructor
+import kotgres.model.repository.QueryMethod
+import kotgres.model.repository.Repo
+import kotgres.parser.KotlinType
 import javax.annotation.Generated
 
 
@@ -74,7 +74,11 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
             addStatement("val query = %S", queryMethod.query)
             controlFlow("return connection.prepareStatement(query).use") {
                 queryMethod.queryParameters.forEachIndexed { i, param ->
-                    addStatement("it.set%L(%L, %L)", param.setterType, i + 1, param.path)
+                    if(param.isEnum) {
+                        addStatement("it.setString(%L, %L.name)", i + 1, param.path)
+                    }else{
+                        addStatement("it.set%L(%L, %L)", param.setterType, i + 1, param.path)
+                    }
                 }
                 if (queryMethod.returnType.klass.name != KotlinType.UNIT.qn) {
                     controlFlow("it.executeQuery().use") {
@@ -200,6 +204,12 @@ private fun CodeBlockBuilder.generateConstructorCall(c: ObjectConstructor, isTop
                     c.columnName,
                     MemberName(c.fieldType.pkg, c.fieldType.name)
                 )
+            } else if(c.isEnum){
+                addStatement("%L = %M.valueOf(it.getString(%S)),",
+                    c.fieldName,
+                    MemberName(c.fieldType.pkg, c.fieldType.name),
+                    c.columnName,
+                )
             } else {
                 addStatement(
                     "%L = it.get${c.resultSetGetterName}(%S),",
@@ -233,11 +243,17 @@ private fun TypeSpecBuilder.generateSaveAllFunction(repo: Repo) {
                                 MemberName("kotlinx.serialization", "encodeToString"),
                                 param.path,
                             )
+                        } else if (param.isEnum) {
+                            addStatement(
+                                "it.setString(%L, item.%L.name)",
+                                param.position,
+                                param.path,
+                            )
                         } else {
                             addStatement(
                                 "it.set${param.setterType}(%L, item.%L)",
                                 param.position,
-                                param.path
+                                param.path,
                             )
                         }
                     }
@@ -268,8 +284,8 @@ private fun TypeSpecBuilder.generateCheckFunction(repo: Repo) {
         returns(List::class.parameterizedBy(String::class))
 
         addCode {
-            val columnMember = ClassName("postgres.json.model.db", "ColumnDefinition")
-            val typeMember = ClassName("postgres.json.model.db", "PostgresType")
+            val columnMember = ClassName("kotgres.model.db", "ColumnDefinition")
+            val typeMember = ClassName("kotgres.model.db", "PostgresType")
 
             addStatement("val columns = listOf(")
             indent()

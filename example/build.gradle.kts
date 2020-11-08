@@ -22,12 +22,12 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.0.0")
-    implementation(project(":orm"))
+    implementation(project(":kotgres-core"))
     implementation("org.postgresql:postgresql:42.2.18")
     implementation("com.zaxxer:HikariCP:3.4.5")
     implementation("org.flywaydb:flyway-core:7.1.1")
 
-    kapt(project(":orm"))
+    kapt(project(":kotgres-kapt"))
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.7.0")
     testImplementation("org.testcontainers:postgresql:1.15.0-rc2")

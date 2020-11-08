@@ -2,12 +2,12 @@ package my.pack
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import kotgres.lib.Column
-import kotgres.lib.Id
-import kotgres.lib.PostgresRepository
-import kotgres.lib.Repository
-import kotgres.lib.Where
-import kotgres.model.db.PostgresType
+import kotgres.annotations.Column
+import kotgres.annotations.Id
+import kotgres.annotations.PostgresRepository
+import kotgres.annotations.Where
+import kotgres.aux.PostgresType
+import kotgres.aux.Repository
 import java.sql.Date
 import java.sql.Timestamp
 import java.time.LocalDate

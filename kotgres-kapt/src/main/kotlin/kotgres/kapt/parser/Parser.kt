@@ -4,6 +4,7 @@ import com.sun.tools.javac.code.Symbol
 import kotgres.annotations.Column
 import kotgres.annotations.Id
 import kotgres.annotations.PostgresRepository
+import kotgres.annotations.Query
 import kotgres.annotations.Table
 import kotgres.annotations.Where
 import kotlinx.metadata.Flag
@@ -83,7 +84,7 @@ class Parser(
             .elements
             .map { it as Element }
             .filterIsInstance<Symbol.MethodSymbol>()
-            .associate { it.name.toString() to listOfNotNull(it.getAnnotation(Where::class.java)) }
+            .associate { it.name.toString() to listOfNotNull(it.getAnnotation(Where::class.java), it.getAnnotation(Query::class.java)) }
 
         val functions = kmClass.functions.asSequence()
             .filterNot { Flag.Function.IS_SYNTHESIZED.invoke(it.flags) }

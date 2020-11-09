@@ -11,15 +11,17 @@ data class Repo(
     val saveAllMethod: QueryMethod,
     val findAllMethod: QueryMethod,
     val deleteAllMethod: QueryMethod,
-    val mappedKlass: TableMapping,
+    val mappedKlass: TableMapping, //TODO probably only constructor is used. check and remove
 )
 
 data class QueryMethod(
     val name: String,
     val query: String,
     val queryParameters: List<QueryParameter>,
-    val returnType: Type,
+    val returnType: Type, //TODO remove?
+    val returnKlass: Klass,
     val returnsCollection: Boolean,
+    val objectConstructor: ObjectConstructor?,
 )
 
 data class QueryParameter(

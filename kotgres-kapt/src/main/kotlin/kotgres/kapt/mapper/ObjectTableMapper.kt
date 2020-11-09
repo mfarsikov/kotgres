@@ -2,8 +2,11 @@ package kotgres.kapt.mapper
 
 import kotgres.annotations.Column
 import kotgres.annotations.Id
+import kotgres.annotations.Query
 import kotgres.annotations.Table
 import kotgres.annotations.Where
+import kotgres.aux.ColumnDefinition
+import kotgres.aux.PostgresType
 import kotgres.kapt.model.db.ColumnMapping
 import kotgres.kapt.model.db.TableMapping
 import kotgres.kapt.model.klass.Field
@@ -17,8 +20,6 @@ import kotgres.kapt.model.repository.QueryMethod
 import kotgres.kapt.model.repository.QueryParameter
 import kotgres.kapt.model.repository.Repo
 import kotgres.kapt.parser.KotlinType
-import kotgres.aux.ColumnDefinition
-import kotgres.aux.PostgresType
 
 // ex: `:firstName`
 val parameterPlaceholderRegex = Regex(":\\w*")
@@ -87,7 +88,7 @@ private fun objectConstructor(
     }
 }
 
-fun getterSetterName(column:ColumnMapping):String{
+fun getterSetterName(column: ColumnMapping): String {
     return if (column.type.klass.isEnum) "String" else KotlinType.of(column.type.klass.name)?.jdbcSetterName
         ?: error("cannot map to KotlinType: ${column.type.klass.name}")
 }
@@ -96,15 +97,10 @@ fun Klass.toRepo(): Repo {
     val mapped = superclassParameter?.klass!!
     val mappedKlass = mapped.toTableMapping()
 
-    val (withWhere, withoutWhere) = functions.partition { it.annotationConfigs.any { it is Where } }
-
+    val queryMethods = toQueryMethods(functions, mappedKlass)
     return Repo(
         superKlass = this,
-        queryMethods = withoutWhere.map { it.toQueryMethod(mappedKlass) } + withWhere.map {
-            it.toQueryMethodWhere(
-                mappedKlass
-            )
-        },
+        queryMethods = queryMethods,
         mappedKlass = mappedKlass,
         saveAllMethod = saveAllQuery(mappedKlass),
         findAllMethod = findAllQuery(mappedKlass),
@@ -112,8 +108,66 @@ fun Klass.toRepo(): Repo {
     )
 }
 
+private fun toQueryMethods(functions: List<KlassFunction>, mappedKlass: TableMapping): List<QueryMethod> {
 
-private fun KlassFunction.toQueryMethodWhere(mappedKlass: TableMapping): QueryMethod {
+    val (withWhere, withoutWhere) = functions.partition { it.annotationConfigs.any { it is Where } }
+    val (withQuery, other) = withoutWhere.partition { it.annotationConfigs.any { it is Query } }
+
+
+    val queryMethods = other.map { it.toQueryMethod(mappedKlass, mappedKlass.objectConstructor) } +
+            withWhere.map { it.toQueryMethodWhere(mappedKlass, mappedKlass.objectConstructor) } +
+            withQuery.map { it.toCustomQueryMethod() }
+    return queryMethods
+}
+
+private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
+    val projectionMapping = returnType.klass.toTableMapping()
+
+    val query = annotationConfigs.filterIsInstance<Query>().singleOrNull()?.value!!
+
+    val parametersByName = parameters.associateBy { it.name }
+
+    val paramsOrdered = parameterPlaceholderRegex
+        .findAll(query)
+        .map { it.value.substringAfter(":") }
+        .map { parametersByName[it] ?: error("Parameter '$it' not found, function '$name'") }
+        .toList()
+
+    (parameters - paramsOrdered).takeIf { it.isNotEmpty() }?.let { error("unused parameters: $it, function '$name'") }
+
+    val returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List")
+    val returnKlass = if (returnsCollection) {
+        returnType.typeParameters.single().klass
+    } else {
+        returnType.klass
+    }
+
+
+    return QueryMethod(
+        name = name,
+        query = query.replace(parameterPlaceholderRegex, "?"),
+        returnType = returnType,
+        returnKlass = returnKlass,
+        returnsCollection = returnsCollection,
+        queryParameters = paramsOrdered.mapIndexed { i, it ->
+            QueryParameter(
+                path = it.name,
+                type = it.type,
+                position = i + 1,
+                setterType = KotlinType.of(it.type.klass.name)?.jdbcSetterName
+                    ?: error("cannot map to KotlinType: ${it.type.klass.name}"),
+                isJson = false,
+                isEnum = it.type.klass.isEnum,
+            )
+        },
+        objectConstructor = objectConstructor(returnType.klass, projectionMapping.columns)
+    )
+}
+
+private fun KlassFunction.toQueryMethodWhere(
+    mappedKlass: TableMapping,
+    objectConstructor: ObjectConstructor
+): QueryMethod {
 
     val parametersByName = parameters.associateBy { it.name }
 
@@ -136,11 +190,19 @@ private fun KlassFunction.toQueryMethodWhere(mappedKlass: TableMapping): QueryMe
     val fromClause = "FROM \"${mappedKlass.name}\" "
     val whereClause = "WHERE ${where.value.replace(parameterPlaceholderRegex, "?")}"
 
+    val returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List")
+    val returnKlass = if (returnsCollection) {
+        returnType.typeParameters.single().klass
+    } else {
+        returnType.klass
+    }
+
     return QueryMethod(
         name = name,
         query = listOf(selectOrDeleteClause, fromClause, whereClause).joinToString("\n"),
         returnType = returnType,
-        returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List"),
+        returnKlass = returnKlass,
+        returnsCollection = returnsCollection,
         queryParameters = paramsOrdered.mapIndexed { i, it ->
             QueryParameter(
                 path = it.name,
@@ -152,10 +214,11 @@ private fun KlassFunction.toQueryMethodWhere(mappedKlass: TableMapping): QueryMe
                 isEnum = it.type.klass.isEnum,
             )
         },
+        objectConstructor = objectConstructor
     )
 }
 
-private fun KlassFunction.toQueryMethod(mappedKlass: TableMapping): QueryMethod {
+private fun KlassFunction.toQueryMethod(mappedKlass: TableMapping, objectConstructor: ObjectConstructor): QueryMethod {
 
     val columnsByFieldName = mappedKlass.columns.associateBy { it.path.last() }
 
@@ -181,6 +244,10 @@ private fun KlassFunction.toQueryMethod(mappedKlass: TableMapping): QueryMethod 
     val whereClause = """
         WHERE ${whereColumnsByParameters.values.joinToString(" AND ") { "\"${it.column.name}\" = ?" }}
     """.trimIndent()
+    val returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List")
+
+    val returnKlass = if(returnsCollection){returnType.typeParameters.single().klass}else{returnType.klass}
+
 
     return QueryMethod(
         name = name,
@@ -196,7 +263,9 @@ private fun KlassFunction.toQueryMethod(mappedKlass: TableMapping): QueryMethod 
             )
         },
         returnType = returnType,
-        returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List"),
+        returnKlass = returnKlass,
+        returnsCollection = returnsCollection,
+        objectConstructor = objectConstructor
     )
 }
 
@@ -232,6 +301,8 @@ private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
         queryParameters = parameters,
         returnType = Type(Klass(KotlinType.UNIT.qn)),
         returnsCollection = false,
+        objectConstructor = null,
+        returnKlass = Klass(KotlinType.UNIT.qn),
     )
 }
 
@@ -244,11 +315,12 @@ private fun deleteAllQuery(mappedKlass: TableMapping): QueryMethod {
         queryParameters = emptyList(),
         returnType = Type(Klass(KotlinType.UNIT.qn)),
         returnsCollection = false,
+        objectConstructor = null,
+        returnKlass = Klass(KotlinType.UNIT.qn)
     )
 }
 
 private fun findAllQuery(mappedKlass: TableMapping): QueryMethod {
-    //TODO injections (sql and kotlin)
     val select = """
         SELECT ${mappedKlass.columns.joinToString { "\"${it.column.name}\"" }}
         FROM "${mappedKlass.name}" 
@@ -262,7 +334,9 @@ private fun findAllQuery(mappedKlass: TableMapping): QueryMethod {
             klass = Klass(name = QualifiedName("kotlin.collections", "List")),
             typeParameters = listOf(Type(mappedKlass.klass)),
         ),
-        returnsCollection = true
+        returnsCollection = true,
+        objectConstructor = mappedKlass.objectConstructor,
+        returnKlass = mappedKlass.klass,
     )
 }
 

@@ -44,13 +44,13 @@ fun generateRepository(repo: Repo): FileSpec {
                 PropertySpec.builder("connection", ClassName("java.sql", "Connection"), KModifier.PRIVATE).build()
             )
 
-            generateSaveAllFunction(repo)
-            generateFindAllFunction(repo)
+            generateSaveAllFunction(repo.saveAllMethod, repo.mappedKlass.klass)
+            generateFindAllFunction(repo.findAllMethod)
             generateCheckFunction(repo)
-            generateSaveFunction(repo)
+            generateSaveFunction(repo.saveAllMethod, repo.mappedKlass.klass)
             generateDeleteAllFunction(repo)
             repo.queryMethods.forEach { queryMethod ->
-                generateCustomSelectFunction(queryMethod, repo)
+                generateCustomSelectFunction(queryMethod)
             }
         }
     }
@@ -58,7 +58,6 @@ fun generateRepository(repo: Repo): FileSpec {
 
 private fun TypeSpecBuilder.generateCustomSelectFunction(
     queryMethod: QueryMethod,
-    repo: Repo
 ) {
     addFunction(queryMethod.name) {
         addModifiers(KModifier.OVERRIDE)
@@ -83,9 +82,9 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
                 if (queryMethod.returnType.klass.name != KotlinType.UNIT.qn) {
                     controlFlow("it.executeQuery().use") {
                         if (queryMethod.returnsCollection)
-                            generateCollectionExtractor(repo)
+                            generateCollectionExtractor(queryMethod.returnKlass, queryMethod.objectConstructor!!)
                         else
-                            generateSingleElementExtractor(queryMethod, repo, queryMethod.returnType)
+                            generateSingleElementExtractor(queryMethod, queryMethod.objectConstructor!!, queryMethod.returnType)
                     }
                 } else {
                     addStatement("it.execute()")
@@ -95,12 +94,12 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
     }
 }
 
-private fun CodeBlockBuilder.generateCollectionExtractor(repo: Repo) {
-    addStatement("val acc = mutableListOf<%T>()", repo.mappedKlass.klass.toClassName())
+private fun CodeBlockBuilder.generateCollectionExtractor(klass: Klass, constructor: ObjectConstructor) {
+    addStatement("val acc = mutableListOf<%T>()", klass.toClassName())
     `while`("it.next()") {
         addStatement("acc +=")
         indent()
-        generateConstructorCall(repo.mappedKlass.objectConstructor)
+        generateConstructorCall(constructor)
         unindent()
     }
     addStatement("acc")
@@ -108,8 +107,8 @@ private fun CodeBlockBuilder.generateCollectionExtractor(repo: Repo) {
 
 private fun CodeBlockBuilder.generateSingleElementExtractor(
     queryMethod: QueryMethod,
-    repo: Repo,
-    returnType: Type
+    constructor: ObjectConstructor,
+    returnType: Type,
 ) {
     `if`("it.next()") {
         if (!queryMethod.returnsCollection) {
@@ -121,7 +120,7 @@ private fun CodeBlockBuilder.generateSingleElementExtractor(
                 )
             }
         }
-        generateConstructorCall(repo.mappedKlass.objectConstructor)
+        generateConstructorCall(constructor)
     } `else` {
         if (returnType.nullability == Nullability.NULLABLE)
             addStatement("null")
@@ -142,23 +141,23 @@ fun Type.toTypeName(): TypeName {
     else cn
 }
 
-private fun TypeSpecBuilder.generateSaveFunction(repo: Repo) {
+private fun TypeSpecBuilder.generateSaveFunction(saveAllMethod: QueryMethod, klass: Klass) {
     addFunction("save") {
         addModifiers(KModifier.OVERRIDE)
-        addParameter(ParameterSpec("item", repo.mappedKlass.klass.name.let { ClassName(it.pkg, it.name) }))
+        addParameter(ParameterSpec("item", klass.name.let { ClassName(it.pkg, it.name) }))
         addStatement("saveAll(listOf(item))")
     }
 }
 
-private fun TypeSpecBuilder.generateFindAllFunction(repo: Repo) {
+private fun TypeSpecBuilder.generateFindAllFunction(findAllMethod: QueryMethod) {
     addFunction("findAll") {
         addModifiers(KModifier.OVERRIDE)
-        returns(listParametrizedBy(repo.mappedKlass.klass.name))
+        returns(listParametrizedBy(findAllMethod.returnKlass.name))
 
-        val entityType = repo.findAllMethod.returnType.typeParameters.single()
+        val entityType = findAllMethod.returnType.typeParameters.single()
 
         addCode {
-            addStatement("val query = %S", repo.findAllMethod.query)
+            addStatement("val query = %S", findAllMethod.query)
 
             val entityClassName = ClassName(entityType.klass.name.pkg, entityType.klass.name.name)
             controlFlow("return connection.prepareStatement(query).use") {
@@ -167,7 +166,7 @@ private fun TypeSpecBuilder.generateFindAllFunction(repo: Repo) {
                     `while`("it.next()") {
                         addStatement("acc += ")
 
-                        generateConstructorCall(repo.mappedKlass.objectConstructor)
+                        generateConstructorCall(findAllMethod.objectConstructor!!)
 
                     }
                     addStatement("acc")
@@ -221,19 +220,20 @@ private fun CodeBlockBuilder.generateConstructorCall(c: ObjectConstructor, isTop
     }
 }
 
-private fun TypeSpecBuilder.generateSaveAllFunction(repo: Repo) {
+private fun TypeSpecBuilder.generateSaveAllFunction(saveAllMethod: QueryMethod, klass: Klass) {
     addFunction("saveAll") {
         addModifiers(KModifier.OVERRIDE)
+
         addParameter(
             ParameterSpec(
-                "items", listParametrizedBy(repo.mappedKlass.klass.name)
+                "items", listParametrizedBy(klass.name)
             )
         )
         addCode {
-            addStatement("val query = %S", repo.saveAllMethod.query)
+            addStatement("val query = %S", saveAllMethod.query)
             controlFlow("connection.prepareStatement(query).use") {
                 `for`("item in items") {
-                    for (param in repo.saveAllMethod.queryParameters) {
+                    for (param in saveAllMethod.queryParameters) {
                         if (param.isJson) {
                             addStatement(
                                 """it.setObject(%L, %M().apply { type = "jsonb"; value = %M.%M(item.%L) })""",

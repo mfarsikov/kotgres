@@ -275,4 +275,17 @@ class RepositoryTest {
             { assert(`find by enum`(Mode.ON) == emptyList<MyClass>()) },
         )
     }
+
+    @Test
+    fun `select projection`() {
+        db.transaction { myClassRepository.save(phone) }
+
+        fun `find by proc`(proc: String) =
+            db.transaction { this.myClassRepository.selectSpec(proc) }
+
+        all(
+            { assert(`find by proc`("bionic13") == Projection(phone.id, phone.date) )},
+            { assert(`find by proc`("bionic14") == null) },
+        )
+    }
 }

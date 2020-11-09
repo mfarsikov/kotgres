@@ -5,6 +5,7 @@ import com.zaxxer.hikari.HikariDataSource
 import kotgres.annotations.Column
 import kotgres.annotations.Id
 import kotgres.annotations.PostgresRepository
+import kotgres.annotations.Query
 import kotgres.annotations.Where
 import kotgres.aux.PostgresType
 import kotgres.aux.Repository
@@ -46,6 +47,7 @@ data class MyNestedNestedClass(
     @Column(type = PostgresType.TEXT)
     val longivity: String,
 )
+data class Projection(val id: String,val date: Date)
 
 @PostgresRepository
 interface MyClassRepository : Repository<MyClass> {
@@ -68,6 +70,9 @@ interface MyClassRepository : Repository<MyClass> {
 
     @Where("cap_city = :capacity and :v <= version and date <= :date")
     fun findByCapacityAndVersion(capacity: String, v: Int, date: Date): List<MyClass>
+
+    @Query("select id, date from my_class where proc = :proc")
+    fun selectSpec(proc: String): Projection?
 
 }
 

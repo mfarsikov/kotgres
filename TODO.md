@@ -8,18 +8,21 @@
 * postgres type aliases (text, varchar)
 * check types where it is possible
 * detect cycles
+* primary key exists (`@Id`) in DB
 
 ### Converters
 * custom type converters? Most probably it is not needed. Could be solved by using kewt-mapping
+* Instant to Timestamp with time zone
 
 ### Migrations
 * generate migration scripts (flyway)
+  * gradle plugin? using test containers? embed in tests?
 
 ### Nested objects
 * ~~one to one mappings using joined table~~
 * one to many mapping using JSON √
 * ~~one to many using additional select per collection~~
-* Enums
+* Enums √
 
 ### Querying
 * custom queries:
@@ -43,6 +46,7 @@
         * scalar return type
         * arbitrary objects return type
         * tuples return type?
+    * IS NULL
 * return types:
     * object √
     * collection √
@@ -74,8 +78,9 @@
             column(Battery::capacity, name = "cap_city", type = PostgresType.TEXT)
         }
     }
-    ```                   
-  
+    ``` 
+* Composite keys
+
 ### Test
 * testcontainers in example √
 

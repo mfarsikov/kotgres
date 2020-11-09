@@ -73,18 +73,18 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
             addStatement("val query = %S", queryMethod.query)
             controlFlow("return connection.prepareStatement(query).use") {
                 queryMethod.queryParameters.forEachIndexed { i, param ->
-                    if(param.isEnum) {
+                    if (param.isEnum) {
                         addStatement("it.setString(%L, %L.name)", i + 1, param.path)
-                    }else{
+                    } else {
                         addStatement("it.set%L(%L, %L)", param.setterType, i + 1, param.path)
                     }
                 }
                 if (queryMethod.returnType.klass.name != KotlinType.UNIT.qn) {
                     controlFlow("it.executeQuery().use") {
                         if (queryMethod.returnsCollection)
-                            generateCollectionExtractor(queryMethod.returnKlass, queryMethod.objectConstructor!!)
+                            generateCollectionExtractor(queryMethod)
                         else
-                            generateSingleElementExtractor(queryMethod, queryMethod.objectConstructor!!, queryMethod.returnType)
+                            generateSingleElementExtractor(queryMethod)
                     }
                 } else {
                     addStatement("it.execute()")
@@ -94,12 +94,18 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
     }
 }
 
-private fun CodeBlockBuilder.generateCollectionExtractor(klass: Klass, constructor: ObjectConstructor) {
-    addStatement("val acc = mutableListOf<%T>()", klass.toClassName())
+private fun CodeBlockBuilder.generateCollectionExtractor(queryMethod: QueryMethod) {
+    addStatement("val acc = mutableListOf<%T>()", queryMethod.returnKlass.toClassName())
     `while`("it.next()") {
         addStatement("acc +=")
         indent()
-        generateConstructorCall(constructor)
+        if (queryMethod.returnsScalar) {
+
+
+            addStatement("it.get%")
+        } else {
+            generateConstructorCall(queryMethod.objectConstructor!!)
+        }
         unindent()
     }
     addStatement("acc")
@@ -107,8 +113,6 @@ private fun CodeBlockBuilder.generateCollectionExtractor(klass: Klass, construct
 
 private fun CodeBlockBuilder.generateSingleElementExtractor(
     queryMethod: QueryMethod,
-    constructor: ObjectConstructor,
-    returnType: Type,
 ) {
     `if`("it.next()") {
         if (!queryMethod.returnsCollection) {
@@ -120,9 +124,34 @@ private fun CodeBlockBuilder.generateSingleElementExtractor(
                 )
             }
         }
-        generateConstructorCall(constructor)
+        if (queryMethod.returnsScalar) {
+            val c = queryMethod.objectConstructor as ObjectConstructor.Extractor
+            when {
+                c.isJson -> addStatement(
+                    "%M.%M(it.getString(1))",
+                    MemberName("kotlinx.serialization.json", "Json"),
+                    MemberName("kotlinx.serialization", "decodeFromString"),
+                )
+
+                c.resultSetGetterName == "Object" -> addStatement(
+                    "it.getObject(1, %M::class.java)",
+                    MemberName(c.fieldType.pkg, c.fieldType.name)
+                )
+
+                c.isEnum -> addStatement(
+                    "%M.valueOf(it.getString(1))",
+                    MemberName(c.fieldType.pkg, c.fieldType.name),
+                )
+
+                else -> addStatement(
+                    "it.get${c.resultSetGetterName}(1)"
+                )
+            }
+        } else {
+            generateConstructorCall(queryMethod.objectConstructor!!)
+        }
     } `else` {
-        if (returnType.nullability == Nullability.NULLABLE)
+        if (queryMethod.returnType.nullability == Nullability.NULLABLE)
             addStatement("null")
         else
             addStatement("throw %T()", NoSuchElementException::class)
@@ -203,8 +232,9 @@ private fun CodeBlockBuilder.generateConstructorCall(c: ObjectConstructor, isTop
                     c.columnName,
                     MemberName(c.fieldType.pkg, c.fieldType.name)
                 )
-            } else if(c.isEnum){
-                addStatement("%L = %M.valueOf(it.getString(%S)),",
+            } else if (c.isEnum) {
+                addStatement(
+                    "%L = %M.valueOf(it.getString(%S)),",
                     c.fieldName,
                     MemberName(c.fieldType.pkg, c.fieldType.name),
                     c.columnName,

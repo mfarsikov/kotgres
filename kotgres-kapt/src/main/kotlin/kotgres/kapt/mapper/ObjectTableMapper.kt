@@ -7,6 +7,7 @@ import kotgres.annotations.Table
 import kotgres.annotations.Where
 import kotgres.aux.ColumnDefinition
 import kotgres.aux.PostgresType
+import kotgres.kapt.Logger
 import kotgres.kapt.model.db.ColumnMapping
 import kotgres.kapt.model.db.TableMapping
 import kotgres.kapt.model.klass.Field
@@ -61,7 +62,13 @@ private fun objectConstructor(
     path: List<String> = emptyList()
 ): ObjectConstructor {
     return if (klass.fields.isEmpty()) {
-        val column = columns.single { it.path == path }
+        val column = try {
+            columns.single { it.path == path }
+        } catch (ex: NoSuchElementException) {
+            Logger.error("path: $path, columns: $columns")
+            throw ex
+        }
+
 
         column.type.klass.isEnum
         ObjectConstructor.Extractor(
@@ -121,7 +128,6 @@ private fun toQueryMethods(functions: List<KlassFunction>, mappedKlass: TableMap
 }
 
 private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
-    val projectionMapping = returnType.klass.toTableMapping()
 
     val query = annotationConfigs.filterIsInstance<Query>().singleOrNull()?.value!!
 
@@ -142,6 +148,21 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
         returnType.klass
     }
 
+    val kotlinType = KotlinType.of(returnKlass.name)
+    val isScalar = kotlinType != null
+
+    val constructor = if (!isScalar) {
+        objectConstructor(returnKlass, returnKlass.toTableMapping().columns)
+    } else {
+        ObjectConstructor.Extractor(
+            resultSetGetterName = kotlinType!!.jdbcSetterName!!,
+            columnName = "N/A",//TODO introduce another class?
+            fieldName = null,
+            fieldType = kotlinType.qn,
+            isJson = false,//TODO
+            isEnum = false,//TODO
+        )
+    }
 
     return QueryMethod(
         name = name,
@@ -160,7 +181,8 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
                 isEnum = it.type.klass.isEnum,
             )
         },
-        objectConstructor = objectConstructor(returnType.klass, projectionMapping.columns)
+        objectConstructor = constructor,
+        returnsScalar = isScalar,
     )
 }
 
@@ -246,7 +268,11 @@ private fun KlassFunction.toQueryMethod(mappedKlass: TableMapping, objectConstru
     """.trimIndent()
     val returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List")
 
-    val returnKlass = if(returnsCollection){returnType.typeParameters.single().klass}else{returnType.klass}
+    val returnKlass = if (returnsCollection) {
+        returnType.typeParameters.single().klass
+    } else {
+        returnType.klass
+    }
 
 
     return QueryMethod(
@@ -407,9 +433,3 @@ val kotlinTypeToPostgresTypeMapping = mapOf(
     KotlinType.TIMESTAMP to PostgresType.TIMESTAMP_WITH_TIMEZONE,
     KotlinType.UUID to PostgresType.UUID,
 )
-
-fun main() {
-    kotlinTypeToPostgresTypeMapping.forEach { a, b ->
-        println(a.qn.toString() + " | " + b.value)
-    }
-}

@@ -22,6 +22,7 @@ data class QueryMethod(
     val returnKlass: Klass,
     val returnsCollection: Boolean,
     val objectConstructor: ObjectConstructor?,
+    val returnsScalar: Boolean = false,
 )
 
 data class QueryParameter(

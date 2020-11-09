@@ -42,7 +42,7 @@ class RepositoryTest {
             ),
             version = 13,
             bool = true,
-            date = java.sql.Date.valueOf(LocalDate.parse("2010-01-01")),
+            date = Date.valueOf(LocalDate.parse("2010-01-01")),
             timestamp = Timestamp.from(Instant.parse("2010-01-01T00:00:00.000Z")),
             uuid = UUID.fromString("66832deb-1864-42b1-b057-e65c28d39a4e"),
             time = LocalTime.parse("00:00:00"),
@@ -286,6 +286,19 @@ class RepositoryTest {
         all(
             { assert(`find by proc`("bionic13") == Projection(phone.id, phone.date) )},
             { assert(`find by proc`("bionic14") == null) },
+        )
+    }
+
+    @Test
+    fun `select scalar`() {
+        db.transaction { myClassRepository.save(phone) }
+
+        fun `select date by id`(id: String) =
+            db.transaction { myClassRepository.selectDate(id) }
+
+        all(
+            { assert(`select date by id`("13") == phone.date )},
+            { assert(`select date by id`("14") == null) },
         )
     }
 }

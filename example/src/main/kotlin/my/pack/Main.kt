@@ -78,6 +78,9 @@ interface MyClassRepository : Repository<MyClass> {
     @Query("select date from my_class where id = :id")
     fun selectDate(id: String): Date?
 
+    @Query("select date from my_class where proc = :proc")
+    fun selectDates(proc: String): List<Date>
+
 }
 
 fun main() {

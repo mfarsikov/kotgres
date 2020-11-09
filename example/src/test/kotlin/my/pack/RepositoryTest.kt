@@ -14,7 +14,6 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.*
 import javax.sql.DataSource
-import kotlin.NoSuchElementException
 
 class RepositoryTest {
 
@@ -119,7 +118,7 @@ class RepositoryTest {
     }
 
     @Test
-    fun update(){
+    fun update() {
 
         db.transaction { myClassRepository.save(phone) }
         db.transaction { myClassRepository.save(phone.copy(name = "iphone2")) }
@@ -234,10 +233,11 @@ class RepositoryTest {
             db.transaction { this.myClassRepository.findByTime(LocalTime.parse(time)) }
 
         all(
-            { assert(`find by time`("00:00:00") == listOf(phone) )},
+            { assert(`find by time`("00:00:00") == listOf(phone)) },
             { assert(`find by time`("00:00:01") == emptyList<MyClass>()) },
         )
     }
+
     @Test
     fun `search by local date`() {
         db.transaction { myClassRepository.save(phone) }
@@ -246,10 +246,11 @@ class RepositoryTest {
             db.transaction { this.myClassRepository.findByLocalDate(LocalDate.parse(time)) }
 
         all(
-            { assert(`find by local date`("2010-01-01") == listOf(phone) )},
+            { assert(`find by local date`("2010-01-01") == listOf(phone)) },
             { assert(`find by local date`("2010-01-02") == emptyList<MyClass>()) },
         )
     }
+
     @Test
     fun `search by local date time`() {
         db.transaction { myClassRepository.save(phone) }
@@ -258,7 +259,7 @@ class RepositoryTest {
             db.transaction { this.myClassRepository.findByLocalDateTime(LocalDateTime.parse(time)) }
 
         all(
-            { assert(`find by local date time`("2010-01-01T00:00:00") == listOf(phone) )},
+            { assert(`find by local date time`("2010-01-01T00:00:00") == listOf(phone)) },
             { assert(`find by local date time`("2010-01-02T00:00:00") == emptyList<MyClass>()) },
         )
     }
@@ -271,7 +272,7 @@ class RepositoryTest {
             db.transaction { this.myClassRepository.findByMode(mode) }
 
         all(
-            { assert(`find by enum`(Mode.OFF) == listOf(phone) )},
+            { assert(`find by enum`(Mode.OFF) == listOf(phone)) },
             { assert(`find by enum`(Mode.ON) == emptyList<MyClass>()) },
         )
     }
@@ -284,7 +285,7 @@ class RepositoryTest {
             db.transaction { this.myClassRepository.selectSpec(proc) }
 
         all(
-            { assert(`find by proc`("bionic13") == Projection(phone.id, phone.date) )},
+            { assert(`find by proc`("bionic13") == Projection(phone.id, phone.date)) },
             { assert(`find by proc`("bionic14") == null) },
         )
     }
@@ -297,8 +298,24 @@ class RepositoryTest {
             db.transaction { myClassRepository.selectDate(id) }
 
         all(
-            { assert(`select date by id`("13") == phone.date )},
+            { assert(`select date by id`("13") == phone.date) },
             { assert(`select date by id`("14") == null) },
+        )
+    }
+
+    @Test
+    fun `select scalars`() {
+        db.transaction {
+            myClassRepository.save(phone)
+            myClassRepository.save(phone.copy(id = "14"))
+        }
+
+        fun `select date by proc`(proc: String) =
+            db.transaction { myClassRepository.selectDates(proc) }
+
+        all(
+            { assert(`select date by proc`("bionic13") == listOf(phone.date, phone.date)) },
+            { assert(`select date by proc`("bionic14") == emptyList<Date>()) },
         )
     }
 }

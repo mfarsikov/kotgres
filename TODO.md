@@ -28,10 +28,10 @@
 * custom queries:
     * in method names (for single parameter) √
         * use parameter names instead? `findBy(id: Int): Iphone`    √
-        * use parameter annotations `findBy(@Param("cust_id") id: Int): Iphone`
+        * use parameter annotations `findBy(@Param("cust_id") id: Int): Iphone`?
     * custom `@Where` annotation √
-      * use object notation along with column names
-    * `@Join` annotation
+      * ~~use object notation along with column names~~
+    * `@Join` ~~annotation~~
       ```koltin
       @PostgresRepository
       interface IphoneRepository : Repository<Iphone> {
@@ -43,15 +43,15 @@
       }
       ```
     * `@Query` queries
-        * scalar return type
-        * arbitrary objects return type
-        * tuples return type?
+        * scalar return type √
+        * arbitrary objects return type √
+        * ~~tuples return type?~~
     * IS NULL
 * return types:
     * object √
     * collection √
-    * resultSet
-    * row mapper
+    * ~~resultSet~~
+    * ~~row mapper~~
 * JSON queries
 * pagination
 

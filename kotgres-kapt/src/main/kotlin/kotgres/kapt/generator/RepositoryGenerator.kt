@@ -100,9 +100,7 @@ private fun CodeBlockBuilder.generateCollectionExtractor(queryMethod: QueryMetho
         addStatement("acc +=")
         indent()
         if (queryMethod.returnsScalar) {
-
-
-            addStatement("it.get%")
+           generateScalarExtraction(queryMethod.objectConstructor as ObjectConstructor.Extractor)
         } else {
             generateConstructorCall(queryMethod.objectConstructor!!)
         }
@@ -125,28 +123,7 @@ private fun CodeBlockBuilder.generateSingleElementExtractor(
             }
         }
         if (queryMethod.returnsScalar) {
-            val c = queryMethod.objectConstructor as ObjectConstructor.Extractor
-            when {
-                c.isJson -> addStatement(
-                    "%M.%M(it.getString(1))",
-                    MemberName("kotlinx.serialization.json", "Json"),
-                    MemberName("kotlinx.serialization", "decodeFromString"),
-                )
-
-                c.resultSetGetterName == "Object" -> addStatement(
-                    "it.getObject(1, %M::class.java)",
-                    MemberName(c.fieldType.pkg, c.fieldType.name)
-                )
-
-                c.isEnum -> addStatement(
-                    "%M.valueOf(it.getString(1))",
-                    MemberName(c.fieldType.pkg, c.fieldType.name),
-                )
-
-                else -> addStatement(
-                    "it.get${c.resultSetGetterName}(1)"
-                )
-            }
+            generateScalarExtraction(queryMethod.objectConstructor as ObjectConstructor.Extractor)
         } else {
             generateConstructorCall(queryMethod.objectConstructor!!)
         }
@@ -155,6 +132,30 @@ private fun CodeBlockBuilder.generateSingleElementExtractor(
             addStatement("null")
         else
             addStatement("throw %T()", NoSuchElementException::class)
+    }
+}
+
+private fun CodeBlockBuilder.generateScalarExtraction(extractor: ObjectConstructor.Extractor) {
+    when {
+        extractor.isJson -> addStatement(
+            "%M.%M(it.getString(1))",
+            MemberName("kotlinx.serialization.json", "Json"),
+            MemberName("kotlinx.serialization", "decodeFromString"),
+        )
+
+        extractor.resultSetGetterName == "Object" -> addStatement(
+            "it.getObject(1, %M::class.java)",
+            MemberName(extractor.fieldType.pkg, extractor.fieldType.name)
+        )
+
+        extractor.isEnum -> addStatement(
+            "%M.valueOf(it.getString(1))",
+            MemberName(extractor.fieldType.pkg, extractor.fieldType.name),
+        )
+
+        else -> addStatement(
+            "it.get${extractor.resultSetGetterName}(1)"
+        )
     }
 }
 

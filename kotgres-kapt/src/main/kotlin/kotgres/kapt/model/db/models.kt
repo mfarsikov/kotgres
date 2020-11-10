@@ -9,7 +9,7 @@ data class TableMapping(
     val name: String,
     val klass: Klass,
     val columns: List<ColumnMapping>,
-    val objectConstructor: ObjectConstructor,
+    val objectConstructor: ObjectConstructor?,
 )
 
 data class ColumnMapping(

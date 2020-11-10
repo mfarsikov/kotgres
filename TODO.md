@@ -46,6 +46,7 @@
         * scalar return type √
         * arbitrary objects return type √
         * ~~tuples return type?~~
+        * updates; return unit
     * IS NULL
 * return types:
     * object √

@@ -47,11 +47,12 @@ private fun Klass.toTableMapping(): TableMapping {
 
     val columns = flattenToColumns(this)
 
+    val objectConstructor = if(name != KotlinType.UNIT.qn)objectConstructor(this, columns) else null
     return TableMapping(
         name = tableName,
         klass = this,
         columns = columns,
-        objectConstructor = objectConstructor(this, columns)
+        objectConstructor = objectConstructor
     )
 }
 
@@ -121,8 +122,8 @@ private fun toQueryMethods(functions: List<KlassFunction>, mappedKlass: TableMap
     val (withQuery, other) = withoutWhere.partition { it.annotationConfigs.any { it is Query } }
 
 
-    val queryMethods = other.map { it.toQueryMethod(mappedKlass, mappedKlass.objectConstructor) } +
-            withWhere.map { it.toQueryMethodWhere(mappedKlass, mappedKlass.objectConstructor) } +
+    val queryMethods = other.map { it.toQueryMethod(mappedKlass) } +
+            withWhere.map { it.toQueryMethodWhere(mappedKlass) } +
             withQuery.map { it.toCustomQueryMethod() }
     return queryMethods
 }
@@ -152,7 +153,7 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
     val isScalar = kotlinType != null
 
     val constructor = if (!isScalar) {
-        objectConstructor(returnKlass, returnKlass.toTableMapping().columns)
+         returnKlass.toTableMapping().objectConstructor
     } else {
         ObjectConstructor.Extractor(
             resultSetGetterName = kotlinType!!.jdbcSetterName!!,
@@ -188,8 +189,17 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
 
 private fun KlassFunction.toQueryMethodWhere(
     mappedKlass: TableMapping,
-    objectConstructor: ObjectConstructor
 ): QueryMethod {
+
+    val returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List")
+    val returnKlass = if (returnsCollection) {
+        returnType.typeParameters.single().klass
+    } else {
+        returnType.klass
+    }
+
+    val returnKlassTableMapping = returnKlass.toTableMapping()
+    //TODO check projection has same fields as mapped class
 
     val parametersByName = parameters.associateBy { it.name }
 
@@ -206,18 +216,13 @@ private fun KlassFunction.toQueryMethodWhere(
     val selectOrDeleteClause = if (name.startsWith("delete")) {
         "DELETE"
     } else {
-        "SELECT ${mappedKlass.columns.joinToString { "\"${it.column.name}\"" }} "
+        "SELECT ${returnKlassTableMapping.columns.joinToString { "\"${it.column.name}\"" }} "
     }
 
     val fromClause = "FROM \"${mappedKlass.name}\" "
     val whereClause = "WHERE ${where.value.replace(parameterPlaceholderRegex, "?")}"
 
-    val returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List")
-    val returnKlass = if (returnsCollection) {
-        returnType.typeParameters.single().klass
-    } else {
-        returnType.klass
-    }
+
 
     return QueryMethod(
         name = name,
@@ -236,17 +241,28 @@ private fun KlassFunction.toQueryMethodWhere(
                 isEnum = it.type.klass.isEnum,
             )
         },
-        objectConstructor = objectConstructor
+        objectConstructor = returnKlassTableMapping.objectConstructor
     )
 }
 
-private fun KlassFunction.toQueryMethod(mappedKlass: TableMapping, objectConstructor: ObjectConstructor): QueryMethod {
+private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMethod {
 
-    val columnsByFieldName = mappedKlass.columns.associateBy { it.path.last() }
+    val returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List")
+
+    val returnKlass = if (returnsCollection) {
+        returnType.typeParameters.single().klass
+    } else {
+        returnType.klass
+    }
+
+    val returnKlassTableMapping = returnKlass.toTableMapping()
+
+    val columnsByFieldName = repoMappedKlass.columns.associateBy { it.path.last() }
 
     val whereColumnsByParameters = parameters.associateWith {
         columnsByFieldName[it.name]
-            ?: error("cannot find field '${it.name}', among: ${columnsByFieldName.keys}")
+            ?: error("cannot find field '${it.name}', among: ${columnsByFieldName.keys}, of class: ${returnKlass.name}, " +
+                    "function: ${name}")
     }
 
     if (whereColumnsByParameters.isEmpty()) error("Empty query parameters, function name: $name")
@@ -257,23 +273,15 @@ private fun KlassFunction.toQueryMethod(mappedKlass: TableMapping, objectConstru
         """.trimIndent()
     } else {
         """
-        SELECT ${mappedKlass.columns.joinToString { "\"${it.column.name}\"" }}
+        SELECT ${returnKlassTableMapping.columns.joinToString { "\"${it.column.name}\"" }}
         """.trimIndent()
     }
 
-    val from = """FROM "${mappedKlass.name}""""
+    val from = """FROM "${repoMappedKlass.name}""""
 
     val whereClause = """
         WHERE ${whereColumnsByParameters.values.joinToString(" AND ") { "\"${it.column.name}\" = ?" }}
     """.trimIndent()
-    val returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List")
-
-    val returnKlass = if (returnsCollection) {
-        returnType.typeParameters.single().klass
-    } else {
-        returnType.klass
-    }
-
 
     return QueryMethod(
         name = name,
@@ -291,7 +299,7 @@ private fun KlassFunction.toQueryMethod(mappedKlass: TableMapping, objectConstru
         returnType = returnType,
         returnKlass = returnKlass,
         returnsCollection = returnsCollection,
-        objectConstructor = objectConstructor
+        objectConstructor = returnKlassTableMapping.objectConstructor
     )
 }
 
@@ -303,6 +311,7 @@ private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
         VALUES (${mappedKlass.columns.joinToString { "?" }})
     """.trimIndent()
     val onConflict = """
+        
         ON CONFLICT (${mappedKlass.columns.filter { it.column.isId }.joinToString { it.column.name }}) DO 
         UPDATE SET ${
         mappedKlass.columns.joinToString { "\"${it.column.name}\" = EXCLUDED.\"${it.column.name}\"" }

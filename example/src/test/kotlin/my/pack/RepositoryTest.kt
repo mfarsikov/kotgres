@@ -282,7 +282,33 @@ class RepositoryTest {
         db.transaction { myClassRepository.save(phone) }
 
         fun `find by proc`(proc: String) =
-            db.transaction { this.myClassRepository.selectSpec(proc) }
+            db.transaction { this.myClassRepository.selectProjection(proc) }
+
+        all(
+            { assert(`find by proc`("bionic13") == Projection(phone.id, phone.date)) },
+            { assert(`find by proc`("bionic14") == null) },
+        )
+    }
+
+    @Test
+    fun `select projection in custom query`() {
+        db.transaction { myClassRepository.save(phone) }
+
+        fun `find by proc`(proc: String) =
+            db.transaction { this.myClassRepository.selectProjectionCustomQuery(proc) }
+
+        all(
+            { assert(`find by proc`("bionic13") == Projection(phone.id, phone.date)) },
+            { assert(`find by proc`("bionic14") == null) },
+        )
+    }
+
+    @Test
+    fun `select projection in custom where`() {
+        db.transaction { myClassRepository.save(phone) }
+
+        fun `find by proc`(proc: String) =
+            db.transaction { this.myClassRepository.selectProjectionWhere(proc) }
 
         all(
             { assert(`find by proc`("bionic13") == Projection(phone.id, phone.date)) },

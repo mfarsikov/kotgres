@@ -72,8 +72,14 @@ interface MyClassRepository : Repository<MyClass> {
     @Where("cap_city = :capacity and :v <= version and date <= :date")
     fun findByCapacityAndVersion(capacity: String, v: Int, date: Date): List<MyClass>
 
+    fun selectProjection(proc: String): Projection?
+
     @Query("select id, date from my_class where proc = :proc")
-    fun selectSpec(proc: String): Projection?
+    fun selectProjectionCustomQuery(proc: String): Projection?
+
+    @Where("proc = :proc")
+    fun selectProjectionWhere(proc: String): Projection?
+
 
     @Query("select date from my_class where id = :id")
     fun selectDate(id: String): Date?

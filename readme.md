@@ -20,6 +20,12 @@ dependencies {
 
   kapt(project(":kotgres-kapt"))
 }
+
+kapt {
+  arguments {
+    arg("kotgres.db.qualifiedName", "my.pack.DB")
+  }
+}
 ```
 
 ####Create entities and declare repositories
@@ -125,9 +131,9 @@ Each repository interface must be annotated with `@PostgresRepository` and exten
 `saveAll`, `save`, `findAll`, `deleteAll`
 If entity has an identity (property marked as `@Id`) there is generated: `ON CONFLICT DO UPDATE`
 
-### Find methods
+### Query methods
 
-Method name does not matter and could be anything. 
+In most cases a method name does not matter and could be anything. 
 Table column names are taken from method parameter names, so they
 should match entity's property names.
 
@@ -203,7 +209,7 @@ val johns = db.transaction(isolationLevel = IsolationLevel.SERIALIZABLE) {
 |java.util.UUID           | uuid                        |
 
 ## Example
-See `example` directory
+See `example` project
 
 `./gradlew example:kaptKotlin` generates database classes in `example/build/generated/source/kapt/main`
 

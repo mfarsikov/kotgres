@@ -26,7 +26,8 @@ data class QueryMethod(
 )
 
 data class QueryParameter(
-    val position: Int,
+    val positionInQuery: Int,
+    val positionInFunction: Int,
     val type: Type,
     val setterType: String,
     val path: String,

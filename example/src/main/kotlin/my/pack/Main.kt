@@ -48,7 +48,7 @@ data class MyNestedNestedClass(
     val longivity: String,
 )
 
-data class Projection(val id: String, val date: Date)
+data class Projection(val id: String, val date: Date, val list: List<String>)
 
 @PostgresRepository
 interface MyClassRepository : Repository<MyClass> {
@@ -74,7 +74,7 @@ interface MyClassRepository : Repository<MyClass> {
 
     fun selectProjection(proc: String): Projection?
 
-    @Query("select id, date from my_class where proc = :proc")
+    @Query("select id, date, list from my_class where proc = :proc")
     fun selectProjectionCustomQuery(proc: String): Projection?
 
     @Where("proc = :proc")
@@ -86,6 +86,9 @@ interface MyClassRepository : Repository<MyClass> {
 
     @Query("select date from my_class where proc = :proc")
     fun selectDates(proc: String): List<Date>
+
+    @Query("update my_class set date = :date where id = :id")
+    fun update(id: String, date: Date)
 
 }
 

@@ -154,6 +154,8 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
 
     val constructor = if (!isScalar) {
          returnKlass.toTableMapping().objectConstructor
+    } else if(kotlinType == KotlinType.UNIT){
+        null
     } else {
         ObjectConstructor.Extractor(
             resultSetGetterName = kotlinType!!.jdbcSetterName!!,
@@ -165,23 +167,29 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
         )
     }
 
+    var i = 0;
+    val functionParatmerNameToPosition = parameters.associate { it.name to i++ }
+
+    val queryParameters = paramsOrdered.mapIndexed { i, it ->
+        QueryParameter(
+            path = it.name,
+            type = it.type,
+            positionInQuery = i + 1,
+            positionInFunction = functionParatmerNameToPosition[it.name]!!,
+            setterType = KotlinType.of(it.type.klass.name)?.jdbcSetterName
+                ?: error("cannot map to KotlinType: ${it.type.klass.name}"),
+            isJson = false,
+            isEnum = it.type.klass.isEnum,
+        )
+    }
+
     return QueryMethod(
         name = name,
         query = query.replace(parameterPlaceholderRegex, "?"),
         returnType = returnType,
         returnKlass = returnKlass,
         returnsCollection = returnsCollection,
-        queryParameters = paramsOrdered.mapIndexed { i, it ->
-            QueryParameter(
-                path = it.name,
-                type = it.type,
-                position = i + 1,
-                setterType = KotlinType.of(it.type.klass.name)?.jdbcSetterName
-                    ?: error("cannot map to KotlinType: ${it.type.klass.name}"),
-                isJson = false,
-                isEnum = it.type.klass.isEnum,
-            )
-        },
+        queryParameters = queryParameters,
         objectConstructor = constructor,
         returnsScalar = isScalar,
     )
@@ -222,6 +230,22 @@ private fun KlassFunction.toQueryMethodWhere(
     val fromClause = "FROM \"${mappedKlass.name}\" "
     val whereClause = "WHERE ${where.value.replace(parameterPlaceholderRegex, "?")}"
 
+    var i = 0;
+    val functionParamNameToPosition = parameters.associate { it.name to i++ }
+
+    val queryParameters = paramsOrdered.mapIndexed { i, it ->
+        QueryParameter(
+            path = it.name,
+            type = it.type,
+            positionInQuery = i + 1,
+            positionInFunction = functionParamNameToPosition[it.name]!!,
+            setterType = KotlinType.of(it.type.klass.name)?.jdbcSetterName
+                ?: error("cannot map to KotlinType: ${it.type.klass.name}"),
+            isJson = false,
+            isEnum = it.type.klass.isEnum,
+        )
+    }
+
 
 
     return QueryMethod(
@@ -230,17 +254,7 @@ private fun KlassFunction.toQueryMethodWhere(
         returnType = returnType,
         returnKlass = returnKlass,
         returnsCollection = returnsCollection,
-        queryParameters = paramsOrdered.mapIndexed { i, it ->
-            QueryParameter(
-                path = it.name,
-                type = it.type,
-                position = i + 1,
-                setterType = KotlinType.of(it.type.klass.name)?.jdbcSetterName
-                    ?: error("cannot map to KotlinType: ${it.type.klass.name}"),
-                isJson = false,
-                isEnum = it.type.klass.isEnum,
-            )
-        },
+        queryParameters = queryParameters,
         objectConstructor = returnKlassTableMapping.objectConstructor
     )
 }
@@ -290,7 +304,8 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
             QueryParameter(
                 path = parameters[i].name,
                 type = c.type,
-                position = i + 1,
+                positionInQuery = i + 1,
+                positionInFunction = i,
                 setterType = getterSetterName(c),
                 isJson = c.column.type == PostgresType.JSONB,
                 isEnum = c.type.klass.isEnum,
@@ -322,7 +337,8 @@ private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
 
     val parameters = mappedKlass.columns.mapIndexed { i, it ->
         QueryParameter(
-            position = i + 1,
+            positionInQuery = i + 1,
+            positionInFunction = i,
             type = it.type,
             setterType = getterSetterName(it),
             path = it.path.joinToString("."),

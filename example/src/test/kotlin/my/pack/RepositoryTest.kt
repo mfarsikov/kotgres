@@ -285,7 +285,7 @@ class RepositoryTest {
             db.transaction { this.myClassRepository.selectProjection(proc) }
 
         all(
-            { assert(`find by proc`("bionic13") == Projection(phone.id, phone.date)) },
+            { assert(`find by proc`("bionic13") == Projection(phone.id, phone.date, listOf("a", "b", "c"))) },
             { assert(`find by proc`("bionic14") == null) },
         )
     }
@@ -298,7 +298,7 @@ class RepositoryTest {
             db.transaction { this.myClassRepository.selectProjectionCustomQuery(proc) }
 
         all(
-            { assert(`find by proc`("bionic13") == Projection(phone.id, phone.date)) },
+            { assert(`find by proc`("bionic13") == Projection(phone.id, phone.date, listOf("a", "b", "c"))) },
             { assert(`find by proc`("bionic14") == null) },
         )
     }
@@ -311,7 +311,7 @@ class RepositoryTest {
             db.transaction { this.myClassRepository.selectProjectionWhere(proc) }
 
         all(
-            { assert(`find by proc`("bionic13") == Projection(phone.id, phone.date)) },
+            { assert(`find by proc`("bionic13") == Projection(phone.id, phone.date, phone.list)) },
             { assert(`find by proc`("bionic14") == null) },
         )
     }
@@ -343,5 +343,19 @@ class RepositoryTest {
             { assert(`select date by proc`("bionic13") == listOf(phone.date, phone.date)) },
             { assert(`select date by proc`("bionic14") == emptyList<Date>()) },
         )
+    }
+
+    @Test
+    fun `custom update`() {
+        //GIVEN
+        db.transaction { myClassRepository.save(phone) }
+
+        //WHEN
+        db.transaction { myClassRepository.update(phone.id, Date.valueOf("2020-12-31")) }
+
+        //THEN
+        val date = db.transaction { myClassRepository.selectDate(phone.id) }
+
+        assert(date == Date.valueOf("2020-12-31"))
     }
 }

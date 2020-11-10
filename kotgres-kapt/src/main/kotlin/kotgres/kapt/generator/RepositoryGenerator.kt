@@ -62,7 +62,7 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
     addFunction(queryMethod.name) {
         addModifiers(KModifier.OVERRIDE)
         returns(queryMethod.returnType.toTypeName())
-        addParameters(queryMethod.queryParameters.map { param ->
+        addParameters(queryMethod.queryParameters.sortedBy { it.positionInFunction }.map { param ->
             ParameterSpec(
                 name = param.path,
                 type = param.type.toTypeName()
@@ -72,7 +72,7 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
         addCode {
             addStatement("val query = %S", queryMethod.query)
             controlFlow("return connection.prepareStatement(query).use") {
-                queryMethod.queryParameters.forEachIndexed { i, param ->
+                queryMethod.queryParameters.sortedBy { it.positionInQuery }.forEachIndexed { i, param ->
                     if (param.isEnum) {
                         addStatement("it.setString(%L, %L.name)", i + 1, param.path)
                     } else {
@@ -268,7 +268,7 @@ private fun TypeSpecBuilder.generateSaveAllFunction(saveAllMethod: QueryMethod, 
                         if (param.isJson) {
                             addStatement(
                                 """it.setObject(%L, %M().apply { type = "jsonb"; value = %M.%M(item.%L) })""",
-                                param.position,
+                                param.positionInQuery,
                                 MemberName("org.postgresql.util", "PGobject"),
                                 MemberName("kotlinx.serialization.json", "Json"),
                                 MemberName("kotlinx.serialization", "encodeToString"),
@@ -277,13 +277,13 @@ private fun TypeSpecBuilder.generateSaveAllFunction(saveAllMethod: QueryMethod, 
                         } else if (param.isEnum) {
                             addStatement(
                                 "it.setString(%L, item.%L.name)",
-                                param.position,
+                                param.positionInQuery,
                                 param.path,
                             )
                         } else {
                             addStatement(
                                 "it.set${param.setterType}(%L, item.%L)",
-                                param.position,
+                                param.positionInQuery,
                                 param.path,
                             )
                         }

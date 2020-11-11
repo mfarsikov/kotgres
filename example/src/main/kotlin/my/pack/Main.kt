@@ -98,6 +98,8 @@ interface MyClassRepository : Repository<MyClass> {
     @Query("update my_class set date = :date where id = :id")
     fun update(id: String, date: Date)
 
+    @Query("select id, date, list from my_class where date = ANY (:date)")
+    fun customSelectWhereDatesIn(date: List<Date>): List<ProjectionOfMyClass>
 }
 
 fun main() {

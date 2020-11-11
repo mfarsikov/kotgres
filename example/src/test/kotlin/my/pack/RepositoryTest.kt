@@ -378,7 +378,7 @@ class RepositoryTest {
     }
 
     @Test
-    fun `select IN with @Where`(){
+    fun `select IN with @Where`() {
         val phones = listOf(phone, phone.copy(id = "14"))
         db.transaction {
             myClassRepository.saveAll(phones)
@@ -388,9 +388,40 @@ class RepositoryTest {
             db.transaction { myClassRepository.selectProjectionWhereIdIn(ids) }
 
         all(
-            { assert(`id in`(listOf("13", "14")) == listOf(ProjectionOfMyClass(id = phone.id, date = phone.date, list = phone.list),ProjectionOfMyClass(id = "14", date = phone.date, list = phone.list))) },
+            {
+                assert(
+                    `id in`(listOf("13", "14")) == listOf(
+                        ProjectionOfMyClass(
+                            id = phone.id,
+                            date = phone.date,
+                            list = phone.list
+                        ), ProjectionOfMyClass(id = "14", date = phone.date, list = phone.list)
+                    )
+                )
+            },
             { assert(`id in`(listOf("15")) == emptyList<MyClass>()) },
             { assert(`id in`(emptyList()) == emptyList<MyClass>()) },
+        )
+    }
+
+    @Test
+    fun `select IN with custom query`() {
+        val phones = listOf(phone)
+        db.transaction {
+            myClassRepository.saveAll(phones)
+        }
+
+        fun `dates in`(dates: List<String>) =
+            db.transaction { myClassRepository.customSelectWhereDatesIn(dates.map { Date.valueOf(it) }) }
+
+        all(
+            {
+                assert(
+                    `dates in`(listOf("2010-01-01", "2010-01-02")) == listOf(
+                        ProjectionOfMyClass(id = phone.id,date = phone.date,list = phone.list )
+                    )
+                )
+            },
         )
     }
 }

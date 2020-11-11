@@ -171,6 +171,9 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
     val functionParatmerNameToPosition = parameters.associate { it.name to x++ }
 
     val queryParameters = queryParametersOrdered.mapIndexed { i, it ->
+        val convertToArray = it.type.klass.name == KotlinType.LIST.qn
+        val postgresType = if(convertToArray) kotlinTypeToPostgresTypeMapping[KotlinType.of(it.type.typeParameters.single().klass.name)]?:PostgresType.NONE else PostgresType.NONE
+
         QueryParameter(
             path = it.name,
             type = it.type,
@@ -180,8 +183,8 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
                 ?: error("cannot map to KotlinType: ${it.type.klass.name}"),
             isJson = false,
             isEnum = it.type.klass.isEnum,
-            convertToArray = false,
-            postgresType = PostgresType.NONE, //TODO IN clause in custom query method
+            convertToArray = convertToArray,
+            postgresType = postgresType
         )
     }
 

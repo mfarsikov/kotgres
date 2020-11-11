@@ -172,7 +172,9 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
 
     val queryParameters = queryParametersOrdered.mapIndexed { i, it ->
         val convertToArray = it.type.klass.name == KotlinType.LIST.qn
-        val postgresType = if(convertToArray) kotlinTypeToPostgresTypeMapping[KotlinType.of(it.type.typeParameters.single().klass.name)]?:PostgresType.NONE else PostgresType.NONE
+        val postgresType =
+            if (convertToArray) kotlinTypeToPostgresTypeMapping[KotlinType.of(it.type.typeParameters.single().klass.name)]
+                ?: PostgresType.NONE else PostgresType.NONE
 
         QueryParameter(
             path = it.name,
@@ -241,7 +243,9 @@ private fun KlassFunction.toQueryMethodWhere(
 
     val queryParameters = paramsOrdered.mapIndexed { i, parameter ->
         val convertToArray = parameter.type.klass.name == KotlinType.LIST.qn
-        val postgresType = if(convertToArray) kotlinTypeToPostgresTypeMapping[KotlinType.of(parameter.type.typeParameters.single().klass.name)]?:PostgresType.NONE else PostgresType.NONE
+        val postgresType =
+            if (convertToArray) kotlinTypeToPostgresTypeMapping[KotlinType.of(parameter.type.typeParameters.single().klass.name)]
+                ?: PostgresType.NONE else PostgresType.NONE
         QueryParameter(
             path = parameter.name,
             type = parameter.type,
@@ -293,14 +297,18 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
 
     fun toCondition(parameter: FunctionParameter): Condition {
         val exactColumn = columnsByFieldName[parameter.name]
-        if (exactColumn != null && exactColumn.type == parameter.type) {
-            return Condition(exactColumn.column.name, Op.EQ)
+        if (exactColumn != null && exactColumn.type.klass == parameter.type.klass) {
+            return Condition(
+                exactColumn.column.name,
+                nullable = exactColumn.type.nullability == Nullability.NULLABLE && parameter.type.nullability == Nullability.NULLABLE,
+                Op.EQ,
+            )
         }
         if (exactColumn != null &&
             parameter.type.klass.name == KotlinType.LIST.qn &&
             parameter.type.typeParameters.single().klass.name == exactColumn.type.klass.name
         ) {
-            return Condition(exactColumn.column.name, Op.IN)
+            return Condition(exactColumn.column.name, false, Op.IN)
         }
         error("type missmatch") //TODO more useful message
     }
@@ -324,9 +332,11 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
     val whereClause = """
         WHERE ${
         conditions.joinToString(" AND ") {
-            when (it.op) {
-                Op.EQ -> "\"${it.columnName}\" = ?"
-                Op.IN -> "\"${it.columnName}\" = ANY (?)"
+            when  {
+                it.op == Op.EQ && !it.nullable -> "\"${it.columnName}\" = ?"
+                it.op == Op.EQ && it.nullable -> "\"${it.columnName}\" IS NOT DISTINCT FROM ?"
+                it.op == Op.IN -> "\"${it.columnName}\" = ANY (?)"
+                else -> error("")
             }
         }
     }
@@ -357,6 +367,7 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
 
 data class Condition(
     val columnName: String,
+    val nullable: Boolean,
     val op: Op,
 )
 

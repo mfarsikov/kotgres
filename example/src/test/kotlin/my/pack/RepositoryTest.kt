@@ -424,4 +424,23 @@ class RepositoryTest {
             },
         )
     }
+
+    @Test
+    fun `save-read null value`(){
+        val noNamePhone = phone.copy(name = null)
+
+        db.transaction { myClassRepository.save(noNamePhone) }
+        val fromDb = db.transaction { myClassRepository.findById(noNamePhone.id) }
+
+        assert(fromDb == noNamePhone)
+    }
+    @Test
+    fun `where name is null`(){
+        val noNamePhone = phone.copy(name = null)
+
+        db.transaction { myClassRepository.save(noNamePhone) }
+        val fromDb = db.transaction { myClassRepository.findByName(null) }
+
+        assert(fromDb == noNamePhone)
+    }
 }

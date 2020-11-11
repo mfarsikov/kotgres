@@ -1,7 +1,7 @@
 create table "my_class"
 (
     "id"              text primary key,
-    "name"            text                        not null,
+    "name"            text,
     "cap_city"        text                        not null,
     "longivity"       text                        not null,
     "proc"            text                        not null,

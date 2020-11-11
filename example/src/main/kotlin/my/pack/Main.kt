@@ -23,7 +23,7 @@ import javax.sql.DataSource
 data class MyClass(
     @Id
     val id: String,
-    val name: String,
+    val name: String?,
     val myNestedClass: MyNestedClass,
     val version: Int,
     val bool: Boolean,
@@ -57,6 +57,7 @@ data class ProjectionOfMyClass(val id: String, val date: Date, val list: List<St
 interface MyClassRepository : Repository<MyClass> {
 
     fun findById(id: String): MyClass?
+    fun findByName(name: String?): MyClass?
     fun findByDate(date: Date): List<MyClass>
     fun findByIdOrThrow(id: String): MyClass
     fun findBySpecProc(proc: String): List<MyClass>

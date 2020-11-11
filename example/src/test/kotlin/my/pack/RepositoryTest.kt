@@ -285,7 +285,7 @@ class RepositoryTest {
             db.transaction { this.myClassRepository.selectProjection(proc) }
 
         all(
-            { assert(`find by proc`("bionic13") == Projection(phone.id, phone.date, listOf("a", "b", "c"))) },
+            { assert(`find by proc`("bionic13") == ProjectionOfMyClass(phone.id, phone.date, listOf("a", "b", "c"))) },
             { assert(`find by proc`("bionic14") == null) },
         )
     }
@@ -298,7 +298,7 @@ class RepositoryTest {
             db.transaction { this.myClassRepository.selectProjectionCustomQuery(proc) }
 
         all(
-            { assert(`find by proc`("bionic13") == Projection(phone.id, phone.date, listOf("a", "b", "c"))) },
+            { assert(`find by proc`("bionic13") == ProjectionOfMyClass(phone.id, phone.date, listOf("a", "b", "c"))) },
             { assert(`find by proc`("bionic14") == null) },
         )
     }
@@ -311,7 +311,7 @@ class RepositoryTest {
             db.transaction { this.myClassRepository.selectProjectionWhere(proc) }
 
         all(
-            { assert(`find by proc`("bionic13") == Projection(phone.id, phone.date, phone.list)) },
+            { assert(`find by proc`("bionic13") == ProjectionOfMyClass(phone.id, phone.date, phone.list)) },
             { assert(`find by proc`("bionic14") == null) },
         )
     }
@@ -357,5 +357,23 @@ class RepositoryTest {
         val date = db.transaction { myClassRepository.selectDate(phone.id) }
 
         assert(date == Date.valueOf("2020-12-31"))
+    }
+
+    @Test
+    fun `select IN`() {
+
+        val phones = listOf(phone, phone.copy(id = "14"))
+        db.transaction {
+            myClassRepository.saveAll(phones)
+        }
+
+        fun `id in`(ids: List<String>) =
+            db.transaction { myClassRepository.findByIdIn(ids) }
+
+        all(
+            { assert(`id in`(listOf("13", "14")) == phones) },
+            { assert(`id in`(listOf("15")) == emptyList<MyClass>()) },
+            { assert(`id in`(emptyList()) == emptyList<MyClass>()) },
+        )
     }
 }

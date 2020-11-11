@@ -1,5 +1,6 @@
 package kotgres.kapt.model.repository
 
+import kotgres.aux.PostgresType
 import kotgres.kapt.model.db.TableMapping
 import kotgres.kapt.model.klass.Klass
 import kotgres.kapt.model.klass.QualifiedName
@@ -33,6 +34,8 @@ data class QueryParameter(
     val path: String,
     val isJson: Boolean,
     val isEnum: Boolean,
+    val convertToArray: Boolean,
+    val postgresType: PostgresType,
 )
 
 sealed class ObjectConstructor {

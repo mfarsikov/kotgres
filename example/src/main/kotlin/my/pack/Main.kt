@@ -7,10 +7,13 @@ import kotgres.annotations.Id
 import kotgres.annotations.PostgresRepository
 import kotgres.annotations.Query
 import kotgres.annotations.Where
+import kotgres.aux.IsolationLevel
 import kotgres.aux.PostgresType
 import kotgres.aux.Repository
+import org.flywaydb.core.Flyway
 import java.sql.Date
 import java.sql.Timestamp
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -48,7 +51,7 @@ data class MyNestedNestedClass(
     val longivity: String,
 )
 
-data class Projection(val id: String, val date: Date, val list: List<String>)
+data class ProjectionOfMyClass(val id: String, val date: Date, val list: List<String>)
 
 @PostgresRepository
 interface MyClassRepository : Repository<MyClass> {
@@ -66,19 +69,24 @@ interface MyClassRepository : Repository<MyClass> {
     fun findByLocalDateTime(localDateTime: LocalDateTime): List<MyClass>
     fun findByMode(enum: Mode): List<MyClass>
 
+   fun findByIdIn(id: List<String>): List<MyClass>
+
     fun delete(id: String, date: Date)
     fun deleteByDate(date: Date)
 
-    @Where("cap_city = :capacity and :v <= version and date <= :date")
+    @Where("cap_city = :capacity and date <= :date and :v <= version")
     fun findByCapacityAndVersion(capacity: String, v: Int, date: Date): List<MyClass>
 
-    fun selectProjection(proc: String): Projection?
+    fun selectProjection(proc: String): ProjectionOfMyClass?
 
     @Query("select id, date, list from my_class where proc = :proc")
-    fun selectProjectionCustomQuery(proc: String): Projection?
+    fun selectProjectionCustomQuery(proc: String): ProjectionOfMyClass?
 
     @Where("proc = :proc")
-    fun selectProjectionWhere(proc: String): Projection?
+    fun selectProjectionWhere(proc: String): ProjectionOfMyClass?
+
+//    @Where("id = ANY (:proc)")
+//    fun selectProjectionWhere(id: List<String>): ProjectionOfMyClass?
 
 
     @Query("select date from my_class where id = :id")
@@ -98,12 +106,42 @@ fun main() {
         username = "postgres"
     })
 
-    // val message = Flyway.configure().dataSource(ds).load().migrate()
+    val message = Flyway.configure().dataSource(ds).load().migrate()
 
     val db = DB(ds)
 
-    db.transaction {
-        myClassRepository.saveAll(listOf())
+    val phone = MyClass(
+        id = "13",
+        name = "iphone13",
+        myNestedClass = MyNestedClass(
+            proc = "bionic13",
+            myNestedNestedClass = MyNestedNestedClass(
+                capacity = "13wh",
+                longivity = "13h"
+            )
+        ),
+        version = 13,
+        bool = true,
+        date = Date.valueOf(LocalDate.parse("2010-01-01")),
+        timestamp = Timestamp.from(Instant.parse("2010-01-01T00:00:00.000Z")),
+        uuid = UUID.fromString("66832deb-1864-42b1-b057-e65c28d39a4e"),
+        time = LocalTime.parse("00:00:00"),
+        localDate = LocalDate.parse("2010-01-01"),
+        localDateTime = LocalDateTime.parse("2010-01-01T00:00:00"),
+        list = listOf("a", "b", "c"),
+        enum = Mode.OFF,
+    )
 
+    db.transaction(readOnly = true, isolationLevel = IsolationLevel.SERIALIZABLE) {
+        myClassRepository.save(phone)
     }
+
+    val con = ds.connection
+    val ps = con.prepareStatement("select * from my_class where id = ANY (?)")
+    ps.setArray(1, con.createArrayOf("varchar", listOf("13", "14").toTypedArray()))
+    val rs = ps.executeQuery()
+    while (rs.next()){
+        println("id: ${rs.getString("id")}")
+    }
+
 }

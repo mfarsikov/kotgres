@@ -75,6 +75,13 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
                 queryMethod.queryParameters.sortedBy { it.positionInQuery }.forEachIndexed { i, param ->
                     if (param.isEnum) {
                         addStatement("it.setString(%L, %L.name)", i + 1, param.path)
+                    } else if (param.convertToArray) {
+                        addStatement(
+                            "it.setArray(%L, connection.createArrayOf(%S, %L.toTypedArray()))",
+                            param.positionInQuery,
+                            param.postgresType.value,
+                            param.path,
+                        )
                     } else {
                         addStatement("it.set%L(%L, %L)", param.setterType, i + 1, param.path)
                     }
@@ -100,7 +107,7 @@ private fun CodeBlockBuilder.generateCollectionExtractor(queryMethod: QueryMetho
         addStatement("acc +=")
         indent()
         if (queryMethod.returnsScalar) {
-           generateScalarExtraction(queryMethod.objectConstructor as ObjectConstructor.Extractor)
+            generateScalarExtraction(queryMethod.objectConstructor as ObjectConstructor.Extractor)
         } else {
             generateConstructorCall(queryMethod.objectConstructor!!)
         }

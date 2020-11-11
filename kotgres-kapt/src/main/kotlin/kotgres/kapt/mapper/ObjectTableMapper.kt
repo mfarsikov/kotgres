@@ -11,6 +11,7 @@ import kotgres.kapt.Logger
 import kotgres.kapt.model.db.ColumnMapping
 import kotgres.kapt.model.db.TableMapping
 import kotgres.kapt.model.klass.Field
+import kotgres.kapt.model.klass.FunctionParameter
 import kotgres.kapt.model.klass.Klass
 import kotgres.kapt.model.klass.KlassFunction
 import kotgres.kapt.model.klass.Nullability
@@ -47,7 +48,7 @@ private fun Klass.toTableMapping(): TableMapping {
 
     val columns = flattenToColumns(this)
 
-    val objectConstructor = if(name != KotlinType.UNIT.qn)objectConstructor(this, columns) else null
+    val objectConstructor = if (name != KotlinType.UNIT.qn) objectConstructor(this, columns) else null
     return TableMapping(
         name = tableName,
         klass = this,
@@ -121,11 +122,9 @@ private fun toQueryMethods(functions: List<KlassFunction>, mappedKlass: TableMap
     val (withWhere, withoutWhere) = functions.partition { it.annotationConfigs.any { it is Where } }
     val (withQuery, other) = withoutWhere.partition { it.annotationConfigs.any { it is Query } }
 
-
-    val queryMethods = other.map { it.toQueryMethod(mappedKlass) } +
+    return other.map { it.toQueryMethod(mappedKlass) } +
             withWhere.map { it.toQueryMethodWhere(mappedKlass) } +
             withQuery.map { it.toCustomQueryMethod() }
-    return queryMethods
 }
 
 private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
@@ -134,13 +133,14 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
 
     val parametersByName = parameters.associateBy { it.name }
 
-    val paramsOrdered = parameterPlaceholderRegex
+    val queryParametersOrdered = parameterPlaceholderRegex
         .findAll(query)
         .map { it.value.substringAfter(":") }
         .map { parametersByName[it] ?: error("Parameter '$it' not found, function '$name'") }
         .toList()
 
-    (parameters - paramsOrdered).takeIf { it.isNotEmpty() }?.let { error("unused parameters: $it, function '$name'") }
+    (parameters - queryParametersOrdered).takeIf { it.isNotEmpty() }
+        ?.let { error("unused parameters: $it, function '$name'") }
 
     val returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List")
     val returnKlass = if (returnsCollection) {
@@ -153,8 +153,8 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
     val isScalar = kotlinType != null
 
     val constructor = if (!isScalar) {
-         returnKlass.toTableMapping().objectConstructor
-    } else if(kotlinType == KotlinType.UNIT){
+        returnKlass.toTableMapping().objectConstructor
+    } else if (kotlinType == KotlinType.UNIT) {
         null
     } else {
         ObjectConstructor.Extractor(
@@ -167,10 +167,10 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
         )
     }
 
-    var i = 0;
-    val functionParatmerNameToPosition = parameters.associate { it.name to i++ }
+    var x = 0
+    val functionParatmerNameToPosition = parameters.associate { it.name to x++ }
 
-    val queryParameters = paramsOrdered.mapIndexed { i, it ->
+    val queryParameters = queryParametersOrdered.mapIndexed { i, it ->
         QueryParameter(
             path = it.name,
             type = it.type,
@@ -180,6 +180,8 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
                 ?: error("cannot map to KotlinType: ${it.type.klass.name}"),
             isJson = false,
             isEnum = it.type.klass.isEnum,
+            convertToArray = false,
+            postgresType = PostgresType.NONE, //TODO IN clause in custom query method
         )
     }
 
@@ -207,6 +209,7 @@ private fun KlassFunction.toQueryMethodWhere(
     }
 
     val returnKlassTableMapping = returnKlass.toTableMapping()
+
     //TODO check projection has same fields as mapped class
 
     val parametersByName = parameters.associateBy { it.name }
@@ -230,23 +233,23 @@ private fun KlassFunction.toQueryMethodWhere(
     val fromClause = "FROM \"${mappedKlass.name}\" "
     val whereClause = "WHERE ${where.value.replace(parameterPlaceholderRegex, "?")}"
 
-    var i = 0;
-    val functionParamNameToPosition = parameters.associate { it.name to i++ }
+    var x = 0
+    val functionParatmerNameToPosition = parameters.associate { it.name to x++ }
 
-    val queryParameters = paramsOrdered.mapIndexed { i, it ->
+    val queryParameters = paramsOrdered.mapIndexed { i, parameter ->
         QueryParameter(
-            path = it.name,
-            type = it.type,
+            path = parameter.name,
+            type = parameter.type,
             positionInQuery = i + 1,
-            positionInFunction = functionParamNameToPosition[it.name]!!,
-            setterType = KotlinType.of(it.type.klass.name)?.jdbcSetterName
-                ?: error("cannot map to KotlinType: ${it.type.klass.name}"),
+            positionInFunction = functionParatmerNameToPosition[parameter.name]!!,
+            setterType = KotlinType.of(parameter.type.klass.name)?.jdbcSetterName
+                ?: error("cannot map to KotlinType: ${parameter.type.klass.name}"),
             isJson = false,
-            isEnum = it.type.klass.isEnum,
+            isEnum = parameter.type.klass.isEnum,
+            convertToArray = false,
+            postgresType = PostgresType.NONE //TODO IN clause in @Where
         )
     }
-
-
 
     return QueryMethod(
         name = name,
@@ -275,9 +278,29 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
 
     val whereColumnsByParameters = parameters.associateWith {
         columnsByFieldName[it.name]
-            ?: error("cannot find field '${it.name}', among: ${columnsByFieldName.keys}, of class: ${returnKlass.name}, " +
-                    "function: ${name}")
+            ?: error(
+                "cannot find field '${it.name}', among: ${columnsByFieldName.keys}, in class: ${returnKlass.name}, " +
+                        "function: ${name}"
+            )
     }
+
+    //todo check parameter types with column types
+
+    fun toCondition(parameter: FunctionParameter): Condition {
+        val exactColumn = columnsByFieldName[parameter.name]
+        if (exactColumn != null && exactColumn.type == parameter.type) {
+            return Condition(exactColumn.column.name, Op.EQ)
+        }
+        if (exactColumn != null &&
+            parameter.type.klass.name == KotlinType.LIST.qn &&
+            parameter.type.typeParameters.single().klass.name == exactColumn.type.klass.name
+        ) {
+            return Condition(exactColumn.column.name, Op.IN)
+        }
+        error("type missmatch") //TODO more useful message
+    }
+
+    val conditions = parameters.map { toCondition(it) }
 
     if (whereColumnsByParameters.isEmpty()) error("Empty query parameters, function name: $name")
 
@@ -294,7 +317,14 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
     val from = """FROM "${repoMappedKlass.name}""""
 
     val whereClause = """
-        WHERE ${whereColumnsByParameters.values.joinToString(" AND ") { "\"${it.column.name}\" = ?" }}
+        WHERE ${
+        conditions.joinToString(" AND ") {
+            when (it.op) {
+                Op.EQ -> "\"${it.columnName}\" = ?"
+                Op.IN -> "\"${it.columnName}\" = ANY (?)"
+            }
+        }
+    }
     """.trimIndent()
 
     return QueryMethod(
@@ -303,12 +333,14 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
         queryParameters = whereColumnsByParameters.values.mapIndexed { i, c ->
             QueryParameter(
                 path = parameters[i].name,
-                type = c.type,
+                type = parameters[i].type,
                 positionInQuery = i + 1,
                 positionInFunction = i,
                 setterType = getterSetterName(c),
                 isJson = c.column.type == PostgresType.JSONB,
                 isEnum = c.type.klass.isEnum,
+                convertToArray = conditions[i].op == Op.IN,
+                postgresType = c.column.type,
             )
         },
         returnType = returnType,
@@ -317,6 +349,13 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
         objectConstructor = returnKlassTableMapping.objectConstructor
     )
 }
+
+data class Condition(
+    val columnName: String,
+    val op: Op,
+)
+
+enum class Op { EQ, IN }
 
 private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
     //TODO injections (sql and kotlin)
@@ -344,6 +383,8 @@ private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
             path = it.path.joinToString("."),
             isJson = it.column.type == PostgresType.JSONB,
             isEnum = it.type.klass.isEnum,
+            convertToArray = false,
+            postgresType = PostgresType.NONE,
         )
     }
     return QueryMethod(

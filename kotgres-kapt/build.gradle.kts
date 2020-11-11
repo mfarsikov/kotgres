@@ -3,7 +3,6 @@ plugins {
     kotlin("plugin.serialization")
     id("maven-publish")
     idea
-    application
 }
 
 repositories {
@@ -15,26 +14,13 @@ dependencies {
     implementation(platform("org.jetbrains.kotlin:kotlin-bom"))
     implementation("org.jetbrains.kotlin:kotlin-reflect:1.4.10")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.2.0")
-    implementation( "org.postgresql:postgresql:42.2.18")
-    implementation("com.zaxxer:HikariCP:3.4.5")
     implementation("io.github.enjoydambience:kotlinbard:0.4.0")
     implementation(project(":kotgres-core"))
 
-    runtimeOnly("org.slf4j:slf4j-simple:1.7.30")
-
     implementation(files("${System.getProperty("java.home")}/../lib/tools.jar"))
     implementation("com.squareup:kotlinpoet:1.7.2")
-
-    testImplementation("org.jetbrains.kotlin:kotlin-test")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
 }
-
-application {
-    mainClassName = "postgres.json.AppKt"
-}
-
 
 publishing {
     publications {
@@ -67,11 +53,9 @@ publishing {
                     url.set("https://github.com/mfarsikov/kewt-orm")
                 }
             }
-
         }
     }
 }
-
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     kotlinOptions {

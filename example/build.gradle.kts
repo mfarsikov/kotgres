@@ -56,5 +56,6 @@ kapt {
     arguments {
         arg("kotgres.log.level", "debug")
         arg("kotgres.db.qualifiedName", "my.pack.DB")
+        arg("kotgres.spring", "false")
     }
 }

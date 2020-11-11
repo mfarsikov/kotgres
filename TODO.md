@@ -15,16 +15,11 @@
   * gradle plugin? using test containers? embed in tests?
 
 ### Querying
-* custom queries:
-    * IS NULL, setNull
 * JSON queries
 * pagination
 
 ### Naming
 * naming strategy?
-
-### Annotations
-* support Spring
 
 ### Mapping declaration
 * Composite keys

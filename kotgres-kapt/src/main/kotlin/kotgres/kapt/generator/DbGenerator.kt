@@ -27,6 +27,9 @@ fun generateDb(dbDescription: DbDescription): FileSpec {
 
         addClass(dbDescription.name) {
             addAnnotation(Generated::class)
+            if (dbDescription.spring) {
+                addAnnotation(ClassName("org.springframework.stereotype", "Component"))
+            }
             addSuperinterface(Checkable::class)
             primaryConstructor(
                 PropertySpec.builder("ds", ClassName("javax.sql", "DataSource"), KModifier.PRIVATE).build()
@@ -36,9 +39,11 @@ fun generateDb(dbDescription: DbDescription): FileSpec {
                 val repoHolder = ClassName(dbDescription.pkg, "${dbDescription.name}RepositoryHolder")
                 addParameter(ParameterSpec.builder("readOnly", Boolean::class).defaultValue("%L", false).build())
                 ClassName.bestGuess(IsolationLevel::class.qualifiedName!!)
-                val readCommitted = MemberName(ClassName.bestGuess(IsolationLevel::class.qualifiedName!!), "READ_COMMITTED")
+                val readCommitted =
+                    MemberName(ClassName.bestGuess(IsolationLevel::class.qualifiedName!!), "READ_COMMITTED")
                 addParameter(
-                    ParameterSpec.builder("isolationLevel", IsolationLevel::class).defaultValue("%M", readCommitted).build()
+                    ParameterSpec.builder("isolationLevel", IsolationLevel::class).defaultValue("%M", readCommitted)
+                        .build()
                 )
                 addParameter(
                     "block", LambdaTypeName.get(
@@ -68,11 +73,11 @@ fun generateDb(dbDescription: DbDescription): FileSpec {
                 }
             }
 
-            addFunction("check"){
+            addFunction("check") {
                 addModifiers(KModifier.OVERRIDE)
                 returns(List::class.parameterizedBy(String::class))
-                addCode{
-                    controlFlow("return ds.connection.use"){
+                addCode {
+                    controlFlow("return ds.connection.use") {
                         addStatement("listOf(")
                         indent()
                         dbDescription.repositories.forEach { repo ->
@@ -113,4 +118,5 @@ data class DbDescription(
     val pkg: String,
     val name: String,
     val repositories: List<Repo>,
+    val spring: Boolean,
 )

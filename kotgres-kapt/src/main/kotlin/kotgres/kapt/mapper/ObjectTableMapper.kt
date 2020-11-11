@@ -167,8 +167,7 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
         )
     }
 
-    var x = 0
-    val functionParatmerNameToPosition = parameters.associate { it.name to x++ }
+    val functionParatmerNameToPosition = parameters.mapIndexed { x, it -> it.name to x }.toMap()
 
     val queryParameters = queryParametersOrdered.mapIndexed { i, it ->
         val convertToArray = it.type.klass.name == KotlinType.LIST.qn
@@ -238,8 +237,7 @@ private fun KlassFunction.toQueryMethodWhere(
     val fromClause = "FROM \"${mappedKlass.name}\" "
     val whereClause = "WHERE ${where.value.replace(parameterPlaceholderRegex, "?")}"
 
-    var x = 0
-    val functionParatmerNameToPosition = parameters.associate { it.name to x++ }
+    val functionParatmerNameToPosition = parameters.mapIndexed { x, it -> it.name to x }.toMap()
 
     val queryParameters = paramsOrdered.mapIndexed { i, parameter ->
         val convertToArray = parameter.type.klass.name == KotlinType.LIST.qn
@@ -374,7 +372,6 @@ data class Condition(
 enum class Op { EQ, IN }
 
 private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
-    //TODO injections (sql and kotlin)
     val insert = """
         INSERT INTO "${mappedKlass.name}" 
         (${mappedKlass.columns.joinToString { "\"${it.column.name}\"" }})
@@ -495,23 +492,3 @@ private fun extractPostrgresType(
     }
     return null
 }
-
-val kotlinTypeToPostgresTypeMapping = mapOf(
-    KotlinType.BIG_DECIMAL to PostgresType.NUMERIC,
-    KotlinType.BOOLEAN to PostgresType.BOOLEAN,
-    KotlinType.BYTE_ARRAY to PostgresType.BYTEA,
-    KotlinType.DATE to PostgresType.DATE,
-    KotlinType.DOUBLE to PostgresType.DOUBLE,
-    KotlinType.FLOAT to PostgresType.REAL,
-    KotlinType.INT to PostgresType.INTEGER,
-    KotlinType.LIST to PostgresType.JSONB,
-    KotlinType.LONG to PostgresType.BIGINT,
-    KotlinType.LOCAL_DATE to PostgresType.DATE,
-    KotlinType.LOCAL_DATE_TIME to PostgresType.TIMESTAMP,
-    KotlinType.LOCAL_TIME to PostgresType.TIME,
-    KotlinType.MAP to PostgresType.JSONB,
-    KotlinType.STRING to PostgresType.TEXT,
-    KotlinType.TIME to PostgresType.TIME,
-    KotlinType.TIMESTAMP to PostgresType.TIMESTAMP_WITH_TIMEZONE,
-    KotlinType.UUID to PostgresType.UUID,
-)

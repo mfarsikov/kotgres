@@ -19,14 +19,16 @@ import javax.tools.StandardLocation
 
 class Processor : AbstractProcessor() {
     var dbQualifiedName: String? = null
+    var spring: String? = null
     override fun getSupportedSourceVersion() = SourceVersion.latestSupported()
     override fun getSupportedOptions() = setOf(
         "kotgres.log.level",
-        "kotgres.db.qualifiedName"
+        "kotgres.db.qualifiedName",
+        "kotgres.spring"
     )
 
     override fun getSupportedAnnotationTypes() =
-        setOf( PostgresRepository::class).mapTo(mutableSetOf()) { it.qualifiedName }
+        setOf(PostgresRepository::class).mapTo(mutableSetOf()) { it.qualifiedName }
 
     override fun init(processingEnv: ProcessingEnvironment) {
         super.init(processingEnv)
@@ -35,6 +37,7 @@ class Processor : AbstractProcessor() {
         processingEnv.options["kotgres.log.level"]
             ?.also { Logger.logLevel = Logger.LogLevel.valueOf(it.toUpperCase()) }
 
+        spring = processingEnv.options["kotgres.spring"]
 
         dbQualifiedName = processingEnv.options["kotgres.db.qualifiedName"]
         if (dbQualifiedName == null) Logger.error("kotgres.db.qualifiedName is not specified")
@@ -81,7 +84,8 @@ class Processor : AbstractProcessor() {
             dbDescription = DbDescription(
                 pkg = dbQualifiedName!!.substringBeforeLast("."),
                 name = dbQualifiedName!!.substringAfterLast("."),
-                repositories = repos
+                repositories = repos,
+                spring = spring?.toBoolean() ?: false,
             )
         )
 

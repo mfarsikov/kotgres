@@ -237,6 +237,8 @@ private fun KlassFunction.toQueryMethodWhere(
     val functionParatmerNameToPosition = parameters.associate { it.name to x++ }
 
     val queryParameters = paramsOrdered.mapIndexed { i, parameter ->
+        val convertToArray = parameter.type.klass.name == KotlinType.LIST.qn
+        val postgresType = if(convertToArray) kotlinTypeToPostgresTypeMapping[KotlinType.of(parameter.type.typeParameters.single().klass.name)]?:PostgresType.NONE else PostgresType.NONE
         QueryParameter(
             path = parameter.name,
             type = parameter.type,
@@ -246,8 +248,8 @@ private fun KlassFunction.toQueryMethodWhere(
                 ?: error("cannot map to KotlinType: ${parameter.type.klass.name}"),
             isJson = false,
             isEnum = parameter.type.klass.isEnum,
-            convertToArray = false,
-            postgresType = PostgresType.NONE //TODO IN clause in @Where
+            convertToArray = convertToArray,
+            postgresType = postgresType,
         )
     }
 

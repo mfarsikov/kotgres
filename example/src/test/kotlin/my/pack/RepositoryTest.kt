@@ -376,4 +376,21 @@ class RepositoryTest {
             { assert(`id in`(emptyList()) == emptyList<MyClass>()) },
         )
     }
+
+    @Test
+    fun `select IN with @Where`(){
+        val phones = listOf(phone, phone.copy(id = "14"))
+        db.transaction {
+            myClassRepository.saveAll(phones)
+        }
+
+        fun `id in`(ids: List<String>) =
+            db.transaction { myClassRepository.selectProjectionWhereIdIn(ids) }
+
+        all(
+            { assert(`id in`(listOf("13", "14")) == listOf(ProjectionOfMyClass(id = phone.id, date = phone.date, list = phone.list),ProjectionOfMyClass(id = "14", date = phone.date, list = phone.list))) },
+            { assert(`id in`(listOf("15")) == emptyList<MyClass>()) },
+            { assert(`id in`(emptyList()) == emptyList<MyClass>()) },
+        )
+    }
 }

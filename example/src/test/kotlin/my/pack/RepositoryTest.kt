@@ -385,7 +385,7 @@ class RepositoryTest {
         }
 
         fun `id in`(ids: List<String>) =
-            db.transaction { myClassRepository.selectProjectionWhereIdIn(ids) }
+            db.transaction { myClassRepository.selectProjectionWhere(ids) }
 
         all(
             {

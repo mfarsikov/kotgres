@@ -330,7 +330,7 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
     val whereClause = """
         WHERE ${
         conditions.joinToString(" AND ") {
-            when  {
+            when {
                 it.op == Op.EQ && !it.nullable -> "\"${it.columnName}\" = ?"
                 it.op == Op.EQ && it.nullable -> "\"${it.columnName}\" IS NOT DISTINCT FROM ?"
                 it.op == Op.IN -> "\"${it.columnName}\" = ANY (?)"

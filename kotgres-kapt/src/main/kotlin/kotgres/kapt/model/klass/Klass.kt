@@ -56,6 +56,11 @@ data class KlassFunction(
     override fun toString() = "$name(${parameters.map { it }.joinToString()}): ${returnType}"
 }
 
+data class FunctionSignature(
+    val functionName: String,
+    val parameters: List<Klass>
+)
+
 data class FunctionParameter(
     val name: String,
     val type: Type,

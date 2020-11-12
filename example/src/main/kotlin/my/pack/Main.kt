@@ -87,8 +87,7 @@ interface MyClassRepository : Repository<MyClass> {
     fun selectProjectionWhere(proc: String): ProjectionOfMyClass?
 
     @Where("id = ANY (:id)")
-    fun selectProjectionWhereIdIn(id: List<String>): List<ProjectionOfMyClass>   //TODO fail if rename to selectProjectionWhere
-
+    fun selectProjectionWhere(id: List<String>): List<ProjectionOfMyClass>
 
     @Query("select date from my_class where id = :id")
     fun selectDate(id: String): Date?

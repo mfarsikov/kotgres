@@ -49,7 +49,7 @@ fun generateRepository(repo: Repo): FileSpec {
             generateSaveAllFunction(repo.saveAllMethod, repo.mappedKlass.klass)
             generateFindAllFunction(repo.findAllMethod)
             generateCheckFunction(repo)
-            generateSaveFunction(repo.saveAllMethod, repo.mappedKlass.klass)
+            generateSaveFunction(repo.mappedKlass.klass)
             generateDeleteAllFunction(repo)
             repo.queryMethods.forEach { queryMethod ->
                 generateCustomSelectFunction(queryMethod)
@@ -74,9 +74,9 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
         addCode {
             addStatement("val query = %S", queryMethod.query)
             controlFlow("return connection.prepareStatement(query).use") {
-                queryMethod.queryParameters.sortedBy { it.positionInQuery }.forEachIndexed { i, param ->
+                queryMethod.queryParameters.sortedBy { it.positionInQuery }.forEach { param ->
                     if (param.isEnum) {
-                        addStatement("it.setString(%L, %L.name)", i + 1, param.path)
+                        addStatement("it.setString(%L, %L.name)", param.positionInQuery, param.path)
                     } else if (param.convertToArray) {
                         addStatement(
                             "it.setArray(%L, connection.createArrayOf(%S, %L.toTypedArray()))",
@@ -84,8 +84,24 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
                             param.postgresType.value,
                             param.path,
                         )
+                    } else if (param.kotlinType.klass.isJavaPrimitive() && param.kotlinType.nullability == Nullability.NULLABLE) {
+                        `if`("%L == null", param.path) {
+                            addStatement(
+                                "it.setNull(%L, %M.%L)",
+                                param.positionInQuery,
+                                MemberName("java.sql", "Types"),
+                                jdbcTypeMappingsForPrimitives[param.postgresType]
+                                    ?: error("no java.sql.Types mapping for ${param.postgresType}")
+                            )
+                        } `else` {
+                            addStatement(
+                                "it.set${param.setterName}(%L, %L)",
+                                param.positionInQuery,
+                                param.path,
+                            )
+                        }
                     } else {
-                        addStatement("it.set%L(%L, %L)", param.setterName, i + 1, param.path)
+                        addStatement("it.set%L(%L, %L)", param.setterName, param.positionInQuery, param.path)
                     }
                 }
                 if (queryMethod.returnType.klass.name != KotlinType.UNIT.qn) {
@@ -180,7 +196,7 @@ fun Type.toTypeName(): TypeName {
     else cn
 }
 
-private fun TypeSpecBuilder.generateSaveFunction(saveAllMethod: QueryMethod, klass: Klass) {
+private fun TypeSpecBuilder.generateSaveFunction( klass: Klass) {
     addFunction("save") {
         addModifiers(KModifier.OVERRIDE)
         addParameter(ParameterSpec("item", klass.name.let { ClassName(it.pkg, it.name) }))
@@ -249,7 +265,7 @@ private fun CodeBlockBuilder.generateConstructorCall(c: ObjectConstructor, isTop
                     MemberName(c.fieldType.pkg, c.fieldType.name),
                     c.columnName,
                 )
-            } else if(c.isPrimitive && c.isNullable){
+            } else if (c.isPrimitive && c.isNullable) {
                 addStatement(
                     "%L = it.get${c.resultSetGetterName}(%S).takeIf { _ -> !it.wasNull() },",
                     c.fieldName,

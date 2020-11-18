@@ -13,6 +13,6 @@ create table "my_nullable_class"
     "time"            time without time zone,
     "local_date"      date,
     "local_date_time" timestamp without time zone,
-    "list"            jsonb,
-    "enum"            text not null
+    "list"            jsonb not null,
+    "enum"            text  not null
 );

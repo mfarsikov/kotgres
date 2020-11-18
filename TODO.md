@@ -5,6 +5,7 @@
 * check types where it is possible
 * detect cycles
 * primary key exists (`@Id`) in DB
+* nested objects are not null
 
 ### Converters
 * custom type converters? Most probably it is not needed. Could be solved by using kewt-mapping
@@ -28,7 +29,6 @@
 
 
 ### nullable
-* primitives
 * enums
 * nested classes
 * jsonb

@@ -252,9 +252,14 @@ private fun KlassFunction.toQueryMethodWhere(
 
     val queryParameters = paramsOrdered.mapIndexed { i, parameter ->
         val convertToArray = parameter.type.klass.name == KotlinType.LIST.qn
+
         val postgresType =
-            if (convertToArray) kotlinTypeToPostgresTypeMapping[KotlinType.of(parameter.type.typeParameters.single().klass.name)]
-                ?: PostgresType.NONE else PostgresType.NONE
+            if (convertToArray) {
+                kotlinTypeToPostgresTypeMapping[KotlinType.of(parameter.type.typeParameters.single().klass.name)]
+            } else {
+                kotlinTypeToPostgresTypeMapping[KotlinType.of(parameter.type.klass.name)]
+            } ?: PostgresType.NONE
+
         QueryParameter(
             path = parameter.name,
             kotlinType = parameter.type,

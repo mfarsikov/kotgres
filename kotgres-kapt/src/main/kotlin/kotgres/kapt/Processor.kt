@@ -9,6 +9,7 @@ import kotgres.kapt.mapper.validationErrors
 import kotgres.kapt.model.klass.Klass
 import kotgres.kapt.model.repository.Repo
 import kotgres.kapt.parser.Parser
+import kotgres.kapt.parser.toQualifiedName
 import javax.annotation.processing.AbstractProcessor
 import javax.annotation.processing.ProcessingEnvironment
 import javax.annotation.processing.RoundEnvironment
@@ -40,7 +41,7 @@ class Processor : AbstractProcessor() {
         spring = processingEnv.options["kotgres.spring"]
 
         dbQualifiedName = processingEnv.options["kotgres.db.qualifiedName"]
-        if (dbQualifiedName == null) Logger.error("kotgres.db.qualifiedName is not specified")
+        if (dbQualifiedName == null) Logger.error("kotgres.db.qualifiedName is not specified")//TODO advice
     }
 
     override fun process(annotations: Set<TypeElement>, roundEnv: RoundEnvironment): Boolean {
@@ -64,7 +65,7 @@ class Processor : AbstractProcessor() {
                 return@forEach
             }
 
-            val repo = parsedRepo.toRepo()
+            val repo = parsedRepo.toRepo(dbQualifiedName!!.toQualifiedName())
             repos += repo
             val repoFile = generateRepository(repo)
 
@@ -80,24 +81,26 @@ class Processor : AbstractProcessor() {
             }
         }
 
-        val dbFile = generateDb(
-            dbDescription = DbDescription(
-                pkg = dbQualifiedName!!.substringBeforeLast("."),
-                name = dbQualifiedName!!.substringAfterLast("."),
-                repositories = repos,
-                spring = spring?.toBoolean() ?: false,
+        repos.groupBy { it.belongsToDb }.forEach { (dbQualifiedName, repos) ->
+            val dbFile = generateDb(
+                dbDescription = DbDescription(
+                    pkg = dbQualifiedName.pkg,
+                    name = dbQualifiedName.name,
+                    repositories = repos,
+                    spring = spring?.toBoolean() ?: false,
+                )
             )
-        )
 
-        val file = processingEnv.filer.createResource(
-            StandardLocation.SOURCE_OUTPUT,
-            dbFile.packageName,
-            dbFile.name,
-            *repositories.toTypedArray()
-        )
+            val file = processingEnv.filer.createResource(
+                StandardLocation.SOURCE_OUTPUT,
+                dbFile.packageName,
+                dbFile.name,
+                *repos.map { it.superKlass.element }.toTypedArray()
+            )
 
-        file.openWriter().use {
-            dbFile.writeTo(it)
+            file.openWriter().use {
+                dbFile.writeTo(it)
+            }
         }
 
         return true

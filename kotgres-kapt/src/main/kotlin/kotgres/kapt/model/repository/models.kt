@@ -13,6 +13,7 @@ data class Repo(
     val findAllMethod: QueryMethod,
     val deleteAllMethod: QueryMethod,
     val mappedKlass: TableMapping, //TODO probably only constructor is used. check and remove
+    val belongsToDb: QualifiedName,
 )
 
 data class QueryMethod(
@@ -29,8 +30,8 @@ data class QueryMethod(
 data class QueryParameter(
     val positionInQuery: Int,
     val positionInFunction: Int,
-    val type: Type,
-    val setterType: String,
+    val kotlinType: Type,
+    val setterName: String,
     val path: String,
     val isJson: Boolean,
     val isEnum: Boolean,
@@ -52,5 +53,7 @@ sealed class ObjectConstructor {
         val fieldType: QualifiedName,
         val isJson: Boolean,
         val isEnum: Boolean,
+        val isPrimitive: Boolean,
+        val isNullable: Boolean,
     ) : ObjectConstructor()
 }

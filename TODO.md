@@ -21,10 +21,14 @@
 ### Naming
 * naming strategy?
 
-### Mapping declaration
-* Composite keys
-
 ### Documentation
 * kdoc 
 * kdoc generated code?
 * documentation
+
+
+### nullable
+* primitives
+* enums
+* nested classes
+* jsonb

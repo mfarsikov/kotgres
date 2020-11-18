@@ -15,7 +15,7 @@ import java.time.LocalTime
 import java.util.*
 import javax.sql.DataSource
 
-class RepositoryTest {
+class MyClassRepositoryTest {
 
     companion object {
         val ds: DataSource = HikariDataSource(HikariConfig().apply {
@@ -49,6 +49,7 @@ class RepositoryTest {
             localDateTime = LocalDateTime.parse("2010-01-01T00:00:00"),
             list = listOf("a", "b", "c"),
             enum = Mode.OFF,
+            nullableInt = null
         )
     }
 

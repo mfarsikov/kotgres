@@ -14,5 +14,6 @@ create table "my_class"
     "local_date"      date                        not null,
     "local_date_time" timestamp without time zone not null,
     "list"            jsonb                       not null,
-    "enum"            text                        not null
+    "enum"            text                        not null,
+    "nullable_int"    integer
 );

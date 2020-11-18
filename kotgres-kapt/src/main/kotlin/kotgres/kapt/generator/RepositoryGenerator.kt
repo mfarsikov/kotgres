@@ -26,6 +26,8 @@ import kotgres.kapt.model.klass.Klass
 import kotgres.kapt.model.klass.Nullability
 import kotgres.kapt.model.klass.QualifiedName
 import kotgres.kapt.model.klass.Type
+import kotgres.kapt.model.klass.isJavaPrimitive
+import kotgres.kapt.model.klass.jdbcTypeMappingsForPrimitives
 import kotgres.kapt.model.repository.ObjectConstructor
 import kotgres.kapt.model.repository.QueryMethod
 import kotgres.kapt.model.repository.Repo
@@ -65,7 +67,7 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
         addParameters(queryMethod.queryParameters.sortedBy { it.positionInFunction }.map { param ->
             ParameterSpec(
                 name = param.path,
-                type = param.type.toTypeName()
+                type = param.kotlinType.toTypeName()
             )
         })
 
@@ -83,7 +85,7 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
                             param.path,
                         )
                     } else {
-                        addStatement("it.set%L(%L, %L)", param.setterType, i + 1, param.path)
+                        addStatement("it.set%L(%L, %L)", param.setterName, i + 1, param.path)
                     }
                 }
                 if (queryMethod.returnType.klass.name != KotlinType.UNIT.qn) {
@@ -247,6 +249,12 @@ private fun CodeBlockBuilder.generateConstructorCall(c: ObjectConstructor, isTop
                     MemberName(c.fieldType.pkg, c.fieldType.name),
                     c.columnName,
                 )
+            } else if(c.isPrimitive && c.isNullable){
+                addStatement(
+                    "%L = it.get${c.resultSetGetterName}(%S).takeIf { _ -> !it.wasNull() },",
+                    c.fieldName,
+                    c.columnName,
+                )
             } else {
                 addStatement(
                     "%L = it.get${c.resultSetGetterName}(%S),",
@@ -287,9 +295,25 @@ private fun TypeSpecBuilder.generateSaveAllFunction(saveAllMethod: QueryMethod, 
                                 param.positionInQuery,
                                 param.path,
                             )
+                        } else if (param.kotlinType.klass.isJavaPrimitive() && param.kotlinType.nullability == Nullability.NULLABLE) {
+                            `if`("item.%L == null", param.path) {
+                                addStatement(
+                                    "it.setNull(%L, %M.%L)",
+                                    param.positionInQuery,
+                                    MemberName("java.sql", "Types"),
+                                    jdbcTypeMappingsForPrimitives[param.postgresType]
+                                        ?: error("no java.sql.Types mapping for ${param.postgresType}")
+                                )
+                            } `else` {
+                                addStatement(
+                                    "it.set${param.setterName}(%L, item.%L)",
+                                    param.positionInQuery,
+                                    param.path,
+                                )
+                            }
                         } else {
                             addStatement(
-                                "it.set${param.setterType}(%L, item.%L)",
+                                "it.set${param.setterName}(%L, item.%L)",
                                 param.positionInQuery,
                                 param.path,
                             )

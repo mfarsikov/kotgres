@@ -2,6 +2,7 @@ package kotgres.kapt.mapper
 
 import kotgres.annotations.Column
 import kotgres.annotations.Id
+import kotgres.annotations.PostgresRepository
 import kotgres.annotations.Query
 import kotgres.annotations.Table
 import kotgres.annotations.Where
@@ -17,11 +18,13 @@ import kotgres.kapt.model.klass.KlassFunction
 import kotgres.kapt.model.klass.Nullability
 import kotgres.kapt.model.klass.QualifiedName
 import kotgres.kapt.model.klass.Type
+import kotgres.kapt.model.klass.primitives
 import kotgres.kapt.model.repository.ObjectConstructor
 import kotgres.kapt.model.repository.QueryMethod
 import kotgres.kapt.model.repository.QueryParameter
 import kotgres.kapt.model.repository.Repo
 import kotgres.kapt.parser.KotlinType
+import kotgres.kapt.parser.toQualifiedName
 
 // ex: `:firstName`
 val parameterPlaceholderRegex = Regex(":\\w*")
@@ -71,8 +74,6 @@ private fun objectConstructor(
             throw ex
         }
 
-
-        column.type.klass.isEnum
         ObjectConstructor.Extractor(
             resultSetGetterName = getterSetterName(column),
             columnName = column.column.name,
@@ -80,6 +81,8 @@ private fun objectConstructor(
             fieldType = column.type.klass.name,
             isJson = column.column.type == PostgresType.JSONB,
             isEnum = column.type.klass.isEnum,
+            isPrimitive = column.type.klass.name in primitives,
+            isNullable = column.type.nullability == Nullability.NULLABLE
         )
     } else {
         ObjectConstructor.Constructor(
@@ -102,7 +105,7 @@ fun getterSetterName(column: ColumnMapping): String {
         ?: error("cannot map to KotlinType: ${column.type.klass.name}")
 }
 
-fun Klass.toRepo(): Repo {
+fun Klass.toRepo(dbQualifiedName: QualifiedName): Repo {
     val mapped = superclassParameter?.klass!!
     val mappedKlass = mapped.toTableMapping()
 
@@ -113,7 +116,13 @@ fun Klass.toRepo(): Repo {
         mappedKlass = mappedKlass,
         saveAllMethod = saveAllQuery(mappedKlass),
         findAllMethod = findAllQuery(mappedKlass),
-        deleteAllMethod = deleteAllQuery(mappedKlass)
+        deleteAllMethod = deleteAllQuery(mappedKlass),
+        belongsToDb = annotations.filterIsInstance<PostgresRepository>()
+            .single()
+            .belongsToDb
+            .takeIf { it.isNotEmpty() }
+            ?.toQualifiedName()
+            ?: dbQualifiedName
     )
 }
 
@@ -143,17 +152,17 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
         ?.let { error("unused parameters: $it, function '$name'") }
 
     val returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List")
-    val returnKlass = if (returnsCollection) {
-        returnType.typeParameters.single().klass
+    val trueReturnType = if (returnsCollection) {
+        returnType.typeParameters.single()
     } else {
-        returnType.klass
+        returnType
     }
 
-    val kotlinType = KotlinType.of(returnKlass.name)
+    val kotlinType = KotlinType.of(trueReturnType.klass.name)
     val isScalar = kotlinType != null
 
     val constructor = if (!isScalar) {
-        returnKlass.toTableMapping().objectConstructor
+        trueReturnType.klass.toTableMapping().objectConstructor
     } else if (kotlinType == KotlinType.UNIT) {
         null
     } else {
@@ -164,6 +173,8 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
             fieldType = kotlinType.qn,
             isJson = false,//TODO
             isEnum = false,//TODO
+            isPrimitive = trueReturnType.klass.name in primitives,
+            isNullable = trueReturnType.nullability == Nullability.NULLABLE,
         )
     }
 
@@ -177,15 +188,15 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
 
         QueryParameter(
             path = it.name,
-            type = it.type,
+            kotlinType = it.type,
             positionInQuery = i + 1,
             positionInFunction = functionParatmerNameToPosition[it.name]!!,
-            setterType = KotlinType.of(it.type.klass.name)?.jdbcSetterName
+            setterName = KotlinType.of(it.type.klass.name)?.jdbcSetterName
                 ?: error("cannot map to KotlinType: ${it.type.klass.name}"),
             isJson = false,
             isEnum = it.type.klass.isEnum,
             convertToArray = convertToArray,
-            postgresType = postgresType
+            postgresType = postgresType,
         )
     }
 
@@ -193,7 +204,7 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
         name = name,
         query = query.replace(parameterPlaceholderRegex, "?"),
         returnType = returnType,
-        returnKlass = returnKlass,
+        returnKlass = trueReturnType.klass,
         returnsCollection = returnsCollection,
         queryParameters = queryParameters,
         objectConstructor = constructor,
@@ -246,10 +257,10 @@ private fun KlassFunction.toQueryMethodWhere(
                 ?: PostgresType.NONE else PostgresType.NONE
         QueryParameter(
             path = parameter.name,
-            type = parameter.type,
+            kotlinType = parameter.type,
             positionInQuery = i + 1,
             positionInFunction = functionParatmerNameToPosition[parameter.name]!!,
-            setterType = KotlinType.of(parameter.type.klass.name)?.jdbcSetterName
+            setterName = KotlinType.of(parameter.type.klass.name)?.jdbcSetterName
                 ?: error("cannot map to KotlinType: ${parameter.type.klass.name}"),
             isJson = false,
             isEnum = parameter.type.klass.isEnum,
@@ -346,10 +357,10 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
         queryParameters = whereColumnsByParameters.values.mapIndexed { i, c ->
             QueryParameter(
                 path = parameters[i].name,
-                type = parameters[i].type,
+                kotlinType = parameters[i].type,
                 positionInQuery = i + 1,
                 positionInFunction = i,
-                setterType = getterSetterName(c),
+                setterName = getterSetterName(c),
                 isJson = c.column.type == PostgresType.JSONB,
                 isEnum = c.type.klass.isEnum,
                 convertToArray = conditions[i].op == Op.IN,
@@ -391,13 +402,13 @@ private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
         QueryParameter(
             positionInQuery = i + 1,
             positionInFunction = i,
-            type = it.type,
-            setterType = getterSetterName(it),
+            kotlinType = it.type,
+            setterName = getterSetterName(it),
             path = it.path.joinToString("."),
             isJson = it.column.type == PostgresType.JSONB,
             isEnum = it.type.klass.isEnum,
             convertToArray = false,
-            postgresType = PostgresType.NONE,
+            postgresType = it.column.type,
         )
     }
     return QueryMethod(

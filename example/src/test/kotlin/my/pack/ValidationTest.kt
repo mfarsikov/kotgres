@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import javax.sql.DataSource
 
-@Disabled
 class ValidationTest {
     companion object {
         val ds: DataSource = HikariDataSource(HikariConfig().apply {
@@ -41,18 +40,32 @@ class ValidationTest {
             create table validation_entity (
                 id uuid not null,
                 name text not null,
-                age integer,
+                age integer
             )
         """.trimIndent()) }
         val db = ValidationDB(ds)
-        assert(db.check() != emptyList<String>())
+        assert(db.check() == listOf("Missing keys: table validation_entity (id UUID not null)"))
+    }
+
+    @Test
+    fun `extra primary key`(){
+        ds.connection.use { it.createStatement().execute("""
+            create table validation_entity (
+                id uuid,
+                name text,
+                age integer,
+                primary key (id, name)
+            )
+        """.trimIndent()) }
+        val db = ValidationDB(ds)
+        assert(db.check() == listOf("Extra keys: table validation_entity (name TEXT not null)"))
     }
 
     @Test
     fun `missing column`(){
         ds.connection.use { it.createStatement().execute("""
             create table validation_entity (
-                id uuid not null,
+                id uuid primary key,
                 age integer
             )
         """.trimIndent()) }
@@ -64,7 +77,7 @@ class ValidationTest {
     fun `extra column`(){
         ds.connection.use { it.createStatement().execute("""
             create table validation_entity (
-                id uuid not null,
+                id uuid primary key,
                 name text not null,
                 age integer,
                 extra int
@@ -78,25 +91,25 @@ class ValidationTest {
     fun `invalid nullable column`(){
         ds.connection.use { it.createStatement().execute("""
             create table validation_entity (
-                id uuid not null,
+                id uuid primary key,
                 name text,
                 age integer
             )
         """.trimIndent()) }
         val db = ValidationDB(ds)
-        assert(db.check() == listOf("Should not be nullable: table validation_entity (name TEXT)"))
+        assert(db.check() == listOf("Invalid nullability: table validation_entity (name TEXT)"))
     }
 
     @Test
     fun `invalid not nullable column`(){
         ds.connection.use { it.createStatement().execute("""
             create table validation_entity (
-                id uuid not null,
+                id uuid primary key,
                 name text not null,
                 age integer not null
             )
         """.trimIndent()) }
         val db = ValidationDB(ds)
-        assert(db.check() == listOf("Should be nullable: table validation_entity (age INTEGER not null)"))
+        assert(db.check() == listOf("Invalid nullability: table validation_entity (age INTEGER not null)"))
     }
 }

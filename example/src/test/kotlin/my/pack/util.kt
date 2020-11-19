@@ -4,15 +4,13 @@ import kotlin.test.fail
 
 inline fun <reified E : Throwable> expect(block: () -> Any?) {
     try {
-        val r =block()
+        val r = block()
         fail("Expected ${E::class.qualifiedName}, but nothing was thrown, and returned: $r")
-    }catch (fail: AssertionError){
+    } catch (fail: AssertionError) {
         throw fail
-    }
-    catch (actual: Throwable) {
+    } catch (actual: Throwable) {
         assert(actual::class == E::class)
     }
-
 }
 
 fun all(vararg r: () -> Unit) {
@@ -26,5 +24,5 @@ fun all(vararg r: () -> Unit) {
         }
     }
     if (exs.isNotEmpty())
-        throw AssertionError(exs.joinToString(separator = "\n\n") )
+        throw AssertionError(exs.joinToString(separator = "\n\n"))
 }

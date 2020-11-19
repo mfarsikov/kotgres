@@ -370,13 +370,14 @@ private fun TypeSpecBuilder.generateCheckFunction(repo: Repo) {
             repo.mappedKlass.columns.mapIndexed { i, it ->
                 val separator = if (i != repo.mappedKlass.columns.size - 1) "," else ""
                 addStatement(
-                    "%T(name = %S, nullable = %L, type = %T.%L )%L",
+                    "%T(name = %S, nullable = %L, type = %T.%L, isId = %L )%L",
                     columnMember,
                     it.column.name,
                     it.column.nullable,
                     typeMember,
                     it.column.type,
-                    separator
+                    it.column.isId,
+                    separator,
                 )
             }
             unindent()

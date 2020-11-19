@@ -4,7 +4,6 @@
 * postgres type aliases (text, varchar)
 * check types where it is possible
 * detect cycles
-* primary key exists (`@Id`) in DB
 * nested objects are not null
 
 ### Converters

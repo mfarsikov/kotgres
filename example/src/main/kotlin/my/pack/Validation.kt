@@ -9,7 +9,7 @@ data class ValidationEntity(
     @Id
     val id: UUID,
     val name: String,
-   // val age: Int?,
+    val age: Int?,
 )
 
 @PostgresRepository(belongsToDb = "my.pack.ValidationDB")

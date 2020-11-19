@@ -14,11 +14,14 @@ plugins {
     kotlin("kapt")
     kotlin("plugin.serialization")
 }
+repositories {
+    jcenter()
+}
 
 dependencies {
-  implementation(project(":kotgres-core"))
+  implementation("com.github.mfarsikov:kotgres-core:0.1.0")
 
-  kapt(project(":kotgres-kapt"))
+  kapt(project("com.github.mfarsikov:kotgres-kapt:0.1.0"))
 }
 
 kapt {

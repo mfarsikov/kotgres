@@ -2,13 +2,17 @@ plugins {
     kotlin("jvm")
     kotlin("plugin.serialization")
     id("maven-publish")
+    id("com.jfrog.bintray")
     idea
 }
 
 repositories {
     jcenter()
 }
-java.sourceCompatibility = JavaVersion.VERSION_1_8
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    withSourcesJar()
+}
 
 dependencies {
     implementation(platform("org.jetbrains.kotlin:kotlin-bom"))
@@ -32,9 +36,9 @@ publishing {
             from(components["java"])
 
             pom {
-                name.set("Kewt ORM")
-                description.set("Kotlin ORM for Postgres")
-                url.set("https://github.com/mfarsikov/kewt-ORM")
+                name.set("Kotgres kapt")
+                description.set("Kotlin repository generator for Postgresql")
+                url.set("https://github.com/mfarsikov/kotgres")
                 licenses {
                     license {
                         name.set("The Apache License, Version 2.0")
@@ -48,11 +52,30 @@ publishing {
                     }
                 }
                 scm {
-                    connection.set("scm:git:git://github.com/mfarsikov/kewt-orm.git")
-                    developerConnection.set("scm:git:ssh://github.com/mfarsikov/kewt-orm.git")
-                    url.set("https://github.com/mfarsikov/kewt-orm")
+                    connection.set("scm:git:git://github.com/mfarsikov/kotgres.git")
+                    developerConnection.set("scm:git:ssh://github.com/mfarsikov/kotgres.git")
+                    url.set("https://github.com/mfarsikov/kotgres")
                 }
             }
+        }
+    }
+}
+
+bintray {
+    user = System.getenv("BINTRAY_USER")
+    key = System.getenv("BINTRAY_KEY")
+    setPublications("bintray")
+    isPublish = true
+    with(pkg) {
+        repo = "Kotgres"
+        name = "kotgres-kapt"
+        userOrg = System.getenv("BINTRAY_USER")
+        setLicenses("Apache-2.0")
+        vcsUrl = "https://github.com/mfarsikov/kotgres"
+        with(version) {
+            name = project.version.toString()
+            desc = "Kotgres Kotlin annotation processor"
+            //released = yyyy-MM-dd'T'HH:mm:ss.SSSZZ
         }
     }
 }

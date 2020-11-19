@@ -6,7 +6,6 @@ plugins {
     kotlin("plugin.serialization")
     id("com.bnorm.power.kotlin-power-assert") version "0.5.3"
     idea
-    application
 }
 
 repositories {
@@ -49,9 +48,7 @@ tasks.withType<KotlinCompile> {
         useIR = true
     }
 }
-application {
-    mainClassName = "my.pack.MainKt"
-}
+
 kapt {
     arguments {
         arg("kotgres.log.level", "debug")

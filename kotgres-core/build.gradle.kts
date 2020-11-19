@@ -1,15 +1,18 @@
+import org.jetbrains.dokka.gradle.DokkaTask
+
 plugins {
     kotlin("jvm")
     kotlin("plugin.serialization")
     id("maven-publish")
+    id("com.jfrog.bintray")
+    id("org.jetbrains.dokka") version "0.10.1"
+
     idea
-    application
 }
 
 repositories {
     jcenter()
 }
-java.sourceCompatibility = JavaVersion.VERSION_1_8
 
 dependencies {
     implementation(platform("org.jetbrains.kotlin:kotlin-bom"))
@@ -18,10 +21,37 @@ dependencies {
 
 }
 
-application {
-    mainClassName = "postgres.json.AppKt"
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    withSourcesJar()
 }
 
+tasks {
+    val dokka by getting(DokkaTask::class) {
+        outputFormat = "javadoc"
+        outputDirectory = "$buildDir/javadoc"
+    }
+}
+val dokkaJar by tasks.creating(Jar::class) {
+    group = JavaBasePlugin.DOCUMENTATION_GROUP
+    description = "Assembles Kotlin docs with Dokka"
+    this.archiveClassifier.set("javadoc")
+    from(tasks.dokka)
+}
+task("generateVersionFile") {
+    val buildInfoFile = file("$buildDir/generated/resources/META-INF/build-info.properties")
+    inputs.property("version", project.version)
+    outputs.file(buildInfoFile)
+    doLast {
+        file(buildInfoFile.parent).mkdirs()
+        buildInfoFile.writeText("version=${project.version}")
+    }
+}
+
+tasks.withType<Jar>().named("jar") {
+    dependsOn("generateVersionFile")
+    from("$buildDir/generated/resources")
+}
 
 publishing {
     publications {
@@ -33,9 +63,9 @@ publishing {
             from(components["java"])
 
             pom {
-                name.set("Kewt ORM")
-                description.set("Kotlin ORM for Postgres")
-                url.set("https://github.com/mfarsikov/kewt-ORM")
+                name.set("Kotgres core")
+                description.set("Kotlin repository generator for Postgresql (compile time dependencies)")
+                url.set("https://github.com/mfarsikov/kotgres")
                 licenses {
                     license {
                         name.set("The Apache License, Version 2.0")
@@ -49,12 +79,30 @@ publishing {
                     }
                 }
                 scm {
-                    connection.set("scm:git:git://github.com/mfarsikov/kewt-orm.git")
-                    developerConnection.set("scm:git:ssh://github.com/mfarsikov/kewt-orm.git")
-                    url.set("https://github.com/mfarsikov/kewt-orm")
+                    connection.set("scm:git:git://github.com/mfarsikov/kotgres.git")
+                    developerConnection.set("scm:git:ssh://github.com/mfarsikov/kotgres.git")
+                    url.set("https://github.com/mfarsikov/kotgres")
                 }
             }
+        }
+    }
+}
 
+bintray {
+    user = System.getenv("BINTRAY_USER")
+    key = System.getenv("BINTRAY_KEY")
+    setPublications("bintray")
+    isPublish = true
+    with(pkg) {
+        repo = "Kotgres"
+        name = "kotgres-core"
+        userOrg = System.getenv("BINTRAY_USER")
+        setLicenses("Apache-2.0")
+        vcsUrl = "https://github.com/mfarsikov/kotgres"
+        with(version) {
+            name = project.version.toString()
+            desc = "Kotgres compile time dependencies"
+            //released = yyyy-MM-dd'T'HH:mm:ss.SSSZZ
         }
     }
 }

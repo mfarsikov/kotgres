@@ -6,12 +6,17 @@ plugins {
     kotlin("plugin.serialization")
     id("com.bnorm.power.kotlin-power-assert") version "0.5.3"
     idea
+    application
 }
 
 repositories {
     mavenLocal()
     mavenCentral()
     jcenter()
+}
+
+application {
+    mainClassName = "my.pack.MainKt"
 }
 
 group = "com.example"

@@ -2,7 +2,7 @@
 
 Not an ORM.
 
-Like ORM maps Kotlin classes to DB tables, only better.
+Generates inspectable SQL queries before compile time rather than in runtime.
 
 `Kotgres = ORM - bullshit`
 
@@ -83,11 +83,11 @@ val bornToday = db.transaction(readOnly = true) {
     * predefined query methods(`saveAll`, `deleteAll`, `findAll`)
     * custom query methods (like `findByLastName`)
     * methods using native SQL (`@Query("select ...")`)
-    * query methods returning projections
-* Code and queries are generated at compile time
+    * query methods returning projections, scalar types and their lists
+* Code and queries are generated during build process, before compilation
 * Generated code is properly formatted and human-friendly
-* Explicit transaction management (DSL, not annotations driven)
-* Postgres specific
+* Explicit transaction management (DSL instead of annotations driven)
+* Postgres specific :elephant:
 * Uses native SQL and JDBC
 * Uses immutable Kotlin data classes as 'entities'
 * Maps nested object's properties into a single table (like JPA `@Embeddable`)
@@ -118,24 +118,58 @@ Use full power of Postrgesql (such as JSON queries and full text search queries)
 Avoid accidental complexity
 
 ## Entities
-### Name conversions
+### Declaration
 Entity is a Kotlin data class. 
 It should be declared in the source code, not imported from a library (maybe this will be changed in future).
-Entity should have property types listed in [type mappings](#Type mappings).
+Entity should have property types listed in [type mappings](#type-mappings).
+Actually there is no required annotations to declare an entity:
+```kotlin
+data class Person(
+  val firstName: String,
+  val lastName: String,
+)
+```
 
+### @Id
+If entity has an ID it should be marked with `@Id` annnotation:
+```kotlin
+data class Person(
+  @Id
+  val id: UUID,
+  val firstName: String,
+  val lastName: String,
+)
+```
+Entity with ID additionally has:
+* `ON CONFLICT DO UPDATE` in save query (save works like a merge rather than an insert)
+* primary key existence check on DB validation
+
+Entity can have more than one `@Id` field
+
+### Name conversions
 Table and column names are the class and property names converted to `lower_snake_case` 
 
 Table name can be changed using annotation `@Table(name = "my_table")` on class level.
-Column name can be changed using `@Column(name = "my_column")` on property level
+Column name can be changed using `@Column(name = "my_column")` on property level.
+```kotlin
+@Table(name = "person")
+data class Person(
+  @Id
+  @Column(name = "id")
+  val id: UUID,
+  @Column(name = "first_name")
+  val firstName: String,
+  @Column(name = "last_name")
+  val lastName: String
+)
+```
 
-See [type mappings](#Type mappings)
 ## Repositories
-
 Each repository interface must be annotated with `@PostgresRepository` and extend `Repository`
 
 ### Predefined methods
 `saveAll`, `save`, `findAll`, `deleteAll`
-If entity has an identity (property marked as `@Id`) there is generated: `ON CONFLICT DO UPDATE`
+If entity has an identity (property marked as `@Id`) save method query has `ON CONFLICT DO UPDATE` which works like a merge rather than insert.
 
 ### Query methods
 #### Method name
@@ -183,7 +217,7 @@ In case if more sophisticated logic is required `@Where` annotation should be us
 fun select(namePattern: String, birthDate: LocalDate): List<Person>
 ```
 
-#### Cusom @Query methods
+#### Custom @Query methods
 User can define any custom query, which is mapped to any data class. In this case column names in result set should match 
 projection class field names (up to camelCase to snake_case conversion) 
 ```kotlin
@@ -195,9 +229,21 @@ projection class field names (up to camelCase to snake_case conversion)
 """)
 fun select(namePattern: String): PersonProjection 
 ```
-
+Also, custom query methods can have scalar ("primitive") or list of scalars as a return type:
+```kotlin
+@Query("SELECT birth_date FROM person WHERE id = :id")
+fun selectBirthDate(id: UUID): LocalDate?
+@Query("SELECT birth_date FROM person")
+fun selectAllBirthDates(): List<LocalDate>
+@Query("SELECT count() FROM person")
+fun selectPersonNumber(): Int
+```
 ### Delete methods
 Same as find methods, except: it returns nothing, and it's name should start from a `delete` word.
+```kotlin
+fun delete(id: UUID)
+```
+
 
 ## Database object
 Database object gives access to transactions DSL and contains all the generated repositories.
@@ -210,11 +256,24 @@ val johns = db.transaction {
     personRepository.selectAllWhere(lastName = "John")
 }
 ```
+It's fully qualified name is configured in `build.gradle.kts`:
+```kotlin
+kapt {
+  arguments {
+    arg("kotgres.db.qualifiedName", "my.pack.DB") 
+  }
+}
+```
+By default all repositories are assigned to this database object, unless other is specified in 
+`@PostgresRepository` annotation
+```kotlin
+@PostgresRepository(belongsToDb = "my.another.DbObject")
+interface MyRepository : Repository<MyEntity>
+```
 
 ### Spring support
-DB objects could be marked as Spring components:
+DB objects could be marked as Spring components `build.gradle.kts`:
 
-`build.gradle.kt`
 ```kotlin
 kapt {
   arguments {
@@ -258,7 +317,7 @@ DB(dataSource).check()
 ```
 Checks all underlying repositories and returns list of errors or empty list if everything is ok.
 
-Checks for absent/extra fields, type/nullability mismatch, key fields.
+Checks for absent/extra fields, type/nullability mismatch, key fields/primary keys.
 
 ## Type mappings
 

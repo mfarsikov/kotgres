@@ -1,8 +1,5 @@
 package my.pack
 
-import com.zaxxer.hikari.HikariConfig
-import com.zaxxer.hikari.HikariDataSource
-import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -13,20 +10,15 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.*
-import javax.sql.DataSource
 
 class MyClassRepositoryTest {
 
     companion object {
-        val ds: DataSource = HikariDataSource(HikariConfig().apply {
-            jdbcUrl = "jdbc:tc:postgresql://localhost/postgres?user=postgres&password=postgres"
-            username = "postgres"
-        })
 
         @JvmStatic
         @BeforeAll
         fun createTable() {
-            Flyway.configure().dataSource(ds).load().migrate()
+            TestUtil.runMigrations()
         }
 
         val phone = MyClass(
@@ -53,7 +45,7 @@ class MyClassRepositoryTest {
         )
     }
 
-    val db = DB(ds)
+    val db = DB(TestUtil.ds)
 
     @AfterEach
     fun cleanup() {

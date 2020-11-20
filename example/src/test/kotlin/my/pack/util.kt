@@ -1,6 +1,21 @@
 package my.pack
 
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
+import org.flywaydb.core.Flyway
+import javax.sql.DataSource
 import kotlin.test.fail
+
+object TestUtil {
+    val ds: DataSource = HikariDataSource(HikariConfig().apply {
+        jdbcUrl = "jdbc:tc:postgresql://localhost/postgres?user=postgres&password=postgres"
+        username = "postgres"
+    })
+
+    fun runMigrations() {
+        Flyway.configure().dataSource(ds).load().migrate()
+    }
+}
 
 inline fun <reified E : Throwable> expect(block: () -> Any?) {
     try {

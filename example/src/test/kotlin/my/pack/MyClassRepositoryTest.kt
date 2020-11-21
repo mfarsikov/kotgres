@@ -150,7 +150,7 @@ class MyClassRepositoryTest {
     @Test
     fun `not null method throws if there is no result`() {
         expect<NoSuchElementException> {
-            db.transaction(readOnly = true) { myClassRepository.findByIdOrThrow(phone.id) }
+            db.transaction(readOnly = true) { myClassRepository.findSingleById(phone.id) }
         }
     }
 
@@ -411,7 +411,7 @@ class MyClassRepositoryTest {
             {
                 assert(
                     `dates in`(listOf("2010-01-01", "2010-01-02")) == listOf(
-                        ProjectionOfMyClass(id = phone.id,date = phone.date,list = phone.list )
+                        ProjectionOfMyClass(id = phone.id, date = phone.date, list = phone.list)
                     )
                 )
             },
@@ -419,7 +419,7 @@ class MyClassRepositoryTest {
     }
 
     @Test
-    fun `save-read null value`(){
+    fun `save-read null value`() {
         val noNamePhone = phone.copy(name = null)
 
         db.transaction { myClassRepository.save(noNamePhone) }
@@ -427,13 +427,50 @@ class MyClassRepositoryTest {
 
         assert(fromDb == noNamePhone)
     }
+
     @Test
-    fun `where name is null`(){
+    fun `where name is null`() {
         val noNamePhone = phone.copy(name = null)
 
         db.transaction { myClassRepository.save(noNamePhone) }
-        val fromDb = db.transaction { myClassRepository.findByName(null) }
+        val fromDb = db.transaction { myClassRepository.findFirstByName(null) }
 
         assert(fromDb == noNamePhone)
+    }
+
+    @Test
+    fun `find first does not fail on multiple results`() {
+        val noNamePhone1 = phone.copy(name = null)
+        val noNamePhone2 = phone.copy(id = "14", name = null)
+
+        db.transaction { myClassRepository.saveAll(listOf(noNamePhone1, noNamePhone2)) }
+        val fromDb = db.transaction { myClassRepository.findFirstByName(null) }
+
+        assert(fromDb != null)
+    }
+
+    @Test
+    fun `delete by date`() {
+
+        db.transaction { myClassRepository.save(phone) }
+        db.transaction { myClassRepository.deleteByDate(phone.date) }
+        val fromDb = db.transaction { myClassRepository.findAll() }
+
+        assert(fromDb.isEmpty())
+    }
+
+    @Test
+    fun `limit by 3 elemets`() {
+        val fourPhones = listOf(
+            phone,
+            phone.copy(id = "14"),
+            phone.copy(id = "15"),
+            phone.copy(id = "16"),
+        )
+
+        db.transaction { myClassRepository.saveAll(fourPhones) }
+
+        val limited = db.transaction { myClassRepository.findByDate(phone.date) }
+        assert(limited.size == 3)
     }
 }

@@ -2,7 +2,9 @@ package kotgres.kapt.parser
 
 import com.sun.tools.javac.code.Symbol
 import kotgres.annotations.Column
+import kotgres.annotations.First
 import kotgres.annotations.Id
+import kotgres.annotations.Limit
 import kotgres.annotations.PostgresRepository
 import kotgres.annotations.Query
 import kotgres.annotations.Table
@@ -84,7 +86,9 @@ class Parser(
             .associate {
                 it.toFunctionSignature() to listOfNotNull(
                     it.getAnnotation(Where::class.java),
-                    it.getAnnotation(Query::class.java)
+                    it.getAnnotation(Query::class.java),
+                    it.getAnnotation(Limit::class.java),
+                    it.getAnnotation(First::class.java),
                 )
             }
 

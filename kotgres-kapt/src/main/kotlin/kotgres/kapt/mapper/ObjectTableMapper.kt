@@ -1,7 +1,9 @@
 package kotgres.kapt.mapper
 
 import kotgres.annotations.Column
+import kotgres.annotations.First
 import kotgres.annotations.Id
+import kotgres.annotations.Limit
 import kotgres.annotations.PostgresRepository
 import kotgres.annotations.Query
 import kotgres.annotations.Table
@@ -239,7 +241,16 @@ private fun KlassFunction.toQueryMethodWhere(
 
     (parameters - paramsOrdered).takeIf { it.isNotEmpty() }?.let { error("unused parameters: $it, function '$name'") }
 
-    val selectOrDeleteClause = if (name.startsWith("delete")) {
+    val isDelete = name.startsWith("delete")
+
+    val limitClause = when {
+        isDelete -> null
+        returnsCollection -> annotationConfigs.filterIsInstance<Limit>().singleOrNull()?.value?.let { "LIMIT $it" }
+        annotationConfigs.filterIsInstance<First>().isNotEmpty() -> "LIMIT 1"
+        else -> "LIMIT 2"
+    }
+
+    val selectOrDeleteClause = if (isDelete) {
         "DELETE"
     } else {
         "SELECT ${returnKlassTableMapping.columns.joinToString { "\"${it.column.name}\"" }} "
@@ -276,7 +287,7 @@ private fun KlassFunction.toQueryMethodWhere(
 
     return QueryMethod(
         name = name,
-        query = listOf(selectOrDeleteClause, fromClause, whereClause).joinToString("\n"),
+        query = listOfNotNull(selectOrDeleteClause, fromClause, whereClause, limitClause).joinToString("\n"),
         returnType = returnType,
         returnKlass = returnKlass,
         returnsCollection = returnsCollection,
@@ -324,14 +335,23 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
         ) {
             return Condition(exactColumn.column.name, false, Op.IN)
         }
-        error("type missmatch") //TODO more useful message
+        error("type mismatch") //TODO more useful message
     }
 
     val conditions = parameters.map { toCondition(it) }
 
     if (whereColumnsByParameters.isEmpty()) error("Empty query parameters, function name: $name")
 
-    val selectOrDelete = if (name.startsWith("delete")) {
+    val isDelete = name.startsWith("delete")
+
+    val limitClause = when {
+        isDelete -> null
+        returnsCollection -> annotationConfigs.filterIsInstance<Limit>().singleOrNull()?.value?.let { "LIMIT $it" }
+        annotationConfigs.filterIsInstance<First>().isNotEmpty() -> "LIMIT 1"
+        else -> "LIMIT 2"
+    }
+
+    val selectOrDelete = if (isDelete) {
         """
         DELETE 
         """.trimIndent()
@@ -358,7 +378,7 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
 
     return QueryMethod(
         name = name,
-        query = listOf(selectOrDelete, from, whereClause).joinToString("\n"),
+        query = listOfNotNull(selectOrDelete, from, whereClause, limitClause).joinToString("\n"),
         queryParameters = whereColumnsByParameters.values.mapIndexed { i, c ->
             QueryParameter(
                 path = parameters[i].name,

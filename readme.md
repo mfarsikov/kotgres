@@ -193,6 +193,21 @@ fun select(firstName: String): List<Person>
 fun findById(id: UUID): Person?
 fun findByLicenseNumber(licenseNumber: String): Person
 ```
+
+#### @Limit and @First
+If method return type is list, it can be annotated with `@Limit`:
+```kotlin
+@Limit(10)
+fun findByName(name: String): List<Person>
+```
+If method declares entity or scalar, but query returns more than one element - it throws an exception.
+To change this behavior `@First` annotation could be used:
+```kotlin
+@First
+fun findByBirthDate(birthDate: LocalDate): Person
+```
+Note that method that returns a List cannot be annotated with `@First`, 
+as well as method that returns an entity or scalar cannot be annotated with `@Limit` 
 #### Projections
 Besides entities query methods can return projections. For example for entity
 ```kotlin
@@ -208,7 +223,7 @@ and generated code will query only those required fields
 fun findByFirstName(firstName: String): List<PersonProjection1>
 fun select(id: UUID): PersonProjection2?
 ```
-#### @Where and complex conditions
+#### Complex conditions using @Where 
 If method has more than one parameter, they are combined using `AND` logic.
 Parameters compared using equality checks only.
 In case if more sophisticated logic is required `@Where` annotation should be used:
@@ -235,9 +250,12 @@ Also, custom query methods can have scalar ("primitive") or list of scalars as a
 fun selectBirthDate(id: UUID): LocalDate?
 @Query("SELECT birth_date FROM person")
 fun selectAllBirthDates(): List<LocalDate>
-@Query("SELECT count() FROM person")
+@Query("SELECT count(*) FROM person")
 fun selectPersonNumber(): Int
 ```
+`@Query` annotation cannot be combined with none of: `@Where`, `@Limit`, `@First`. 
+It should contain the whole query
+
 ### Delete methods
 Same as find methods, except: it returns nothing, and it's name should start from a `delete` word.
 ```kotlin
@@ -264,8 +282,8 @@ kapt {
   }
 }
 ```
-By default all repositories are assigned to this database object, unless other is specified in 
-`@PostgresRepository` annotation
+By default, all repositories are assigned to this database object, unless other is specified in 
+`@PostgresRepository` annotation:
 ```kotlin
 @PostgresRepository(belongsToDb = "my.another.DbObject")
 interface MyRepository : Repository<MyEntity>
@@ -277,7 +295,7 @@ DB objects could be marked as Spring components `build.gradle.kts`:
 ```kotlin
 kapt {
   arguments {
-    arg("kotgres.spring", "false")
+    arg("kotgres.spring", "true")
   }
 }
 ```

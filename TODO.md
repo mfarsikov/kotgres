@@ -14,20 +14,10 @@
 * generate migration scripts (flyway)
   * gradle plugin? using test containers? embed in tests?
 
-### Querying
-* JSON queries
-* pagination
-
-### Naming
-* naming strategy?
-
 ### Documentation
 * kdoc 
 * kdoc generated code?
 * documentation
 
 
-### nullable
-* enums
-* nested classes
-* jsonb
+throw on insert duplicate

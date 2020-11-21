@@ -1,7 +1,9 @@
 package my.pack
 
 import kotgres.annotations.Column
+import kotgres.annotations.First
 import kotgres.annotations.Id
+import kotgres.annotations.Limit
 import kotgres.annotations.PostgresRepository
 import kotgres.annotations.Query
 import kotgres.annotations.Where
@@ -53,9 +55,11 @@ data class ProjectionOfMyClass(val id: String, val date: Date, val list: List<St
 interface MyClassRepository : Repository<MyClass> {
 
     fun findById(id: String): MyClass?
-    fun findByName(name: String?): MyClass?
+    @First
+    fun findFirstByName(name: String?): MyClass?
+    @Limit(3)
     fun findByDate(date: Date): List<MyClass>
-    fun findByIdOrThrow(id: String): MyClass
+    fun findSingleById(id: String): MyClass
     fun findBySpecProc(proc: String): List<MyClass>
     fun findSingleBySpecProc(proc: String): MyClass
     fun findByIdAndVersion(id: String, version: Int): MyClass?
@@ -82,8 +86,10 @@ interface MyClassRepository : Repository<MyClass> {
     @Where("proc = :proc")
     fun selectProjectionWhere(proc: String): ProjectionOfMyClass?
 
-    @Where("id = ANY (:id)")
     fun selectProjectionWhere(id: List<String>): List<ProjectionOfMyClass>
+
+    @Where("id = ANY (:ids)")
+    fun findProjectionWhere(ids: List<String>): List<ProjectionOfMyClass>
 
     @Query("select date from my_class where id = :id")
     fun selectDate(id: String): Date?

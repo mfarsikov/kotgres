@@ -9,6 +9,7 @@ import com.squareup.kotlinpoet.ParameterSpec
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.PropertySpec
 import com.squareup.kotlinpoet.TypeVariableName
+import io.github.enjoydambience.kotlinbard.`if`
 import io.github.enjoydambience.kotlinbard.addClass
 import io.github.enjoydambience.kotlinbard.addCode
 import io.github.enjoydambience.kotlinbard.addFunction
@@ -62,7 +63,7 @@ fun generateDb(dbDescription: DbDescription): FileSpec {
                     controlFlow(".use") {
                         controlFlow("try") {
                             addStatement("val res = %T(it).block()", repoHolder)
-                            addStatement("it.commit()")
+                            `if`("!readOnly") { addStatement("it.commit()") }
                             addStatement("res")
                         }
                         controlFlow("catch(ex: %T)", Throwable::class) {

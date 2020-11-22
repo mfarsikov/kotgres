@@ -87,6 +87,6 @@ interface MyNullableClassRepository : Repository<MyNullableClass> {
     @Query("update my_nullable_class set date = :date where id = :id")
     fun update(id: String, date: Date?)
 
-    @Query("select id, date, list from my_nullable_class where date = ANY (:date)")
+    @Query("select id, date, list, capacity from my_nullable_class where date = ANY (:date)")
     fun customSelectWhereDatesIn(date: List<Date>): List<NullableProjectionOfMyClass>
 }

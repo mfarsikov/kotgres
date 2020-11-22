@@ -206,7 +206,8 @@ private fun readMetadata(metadata: Metadata): KotlinClassMetadata? = metadata.le
 private val typeDeclarationPattern = "^(([\\w\\.]*)\\.)?(\\w*)(<.*>)?".toRegex()
 fun String.toQualifiedName(): QualifiedName {
     val groups = typeDeclarationPattern.find(this)!!.groups
-    return QualifiedName(groups[2]?.value ?: "", groups[3]?.value!!)
+    val qualifiedName = QualifiedName(groups[2]?.value ?: "", groups[3]?.value!!)
+    return KotlinType.of(qualifiedName)?.qn?:qualifiedName
 }
 
 enum class KotlinType(val qn: QualifiedName, val jdbcSetterName: String?) {
@@ -249,7 +250,7 @@ enum class KotlinType(val qn: QualifiedName, val jdbcSetterName: String?) {
             QualifiedName(pkg = "java.lang", name = "Double") to DOUBLE,
             QualifiedName(pkg = "java.lang", name = "Boolean") to BOOLEAN,
             QualifiedName(pkg = "java.lang", name = "String") to STRING,
-            QualifiedName(pkg = "java.collections", name = "List") to LIST,
+            QualifiedName(pkg = "java.util", name = "List") to LIST,
 
         )
     }

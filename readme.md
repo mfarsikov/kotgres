@@ -313,18 +313,50 @@ public class DB(
 So it could be instantiated and further injected by Spring.
 
 ## Transactions
-Transaction can be savepointed, rolled back (either completely or to certain savepoint).
-Each successful transaction completion automatically commits.
-Any exception - rolls back.
-For performance optimisation read only transactions could be marked as `readonly = true`:
+Any repository interactions are done inside a transaction. 
+This does not introduce any overhead, since even if you do not declare transaction explicitly, it is started implicitly.
+
+### Transaction DSL
+Inside transaction lambda all DB's repositories are available through `this`:
 ```kotlin
-val johns = db.transaction(readonly = true) {
-  personRepository.selectAllWhere(lastName = "John")
+val people = db.transaction {
+    this.personRepository.findAll()
+}
+``` 
+Of cource `this` can be skipped:
+```kotlin
+val people = db.transaction {
+    personRepository.findAll()
+}
+``` 
+If lambda completed successfully - transaction is committed.
+Any exception thrown from the lambda rolls back the transaction.
+Also, transaction can be rolled back manually:
+```kotlin
+db.transaction {
+    personRepository.saveAll(people)
+    if (somethingGoneWrong) rollback()
+}
+``` 
+It is possible to rollback to certain save point:
+```kotlin
+db.transaction {
+    personRepository.saveAll(people)
+    val savePoint = savePoint()
+      ...
+    if (somethingGoneWrong) rollbackTo(savePoint)
+}
+``` 
+If transaction is read only, it could be specified:
+```kotlin
+val people = db.transaction(readOnly = true) {
+    personRepository.findAll()
 }
 ```
-Default isolation level (READ_COMMITTED) can be replaced for each transaction:
+
+Default isolation level (READ_COMMITTED) can be changed per transaction:
 ```kotlin
-val johns = db.transaction(isolationLevel = IsolationLevel.SERIALIZABLE) {
+db.transaction(isolationLevel = IsolationLevel.SERIALIZABLE) {
     ...
 }
 ```

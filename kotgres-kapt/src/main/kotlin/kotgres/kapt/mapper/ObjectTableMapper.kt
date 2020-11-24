@@ -45,8 +45,10 @@ private fun checkFieldTypes(rootKlass: Klass, klass: Klass, path: List<String>):
 }
 
 private fun Klass.toTableMapping(): TableMapping {
-    val tableName = annotations.filterIsInstance<Table>()
+    val tableAnnotation = annotations.filterIsInstance<Table>()
         .singleOrNull()
+
+    val tableName = tableAnnotation
         ?.name
         ?.takeIf { it.isNotEmpty() }
         ?: name.name.camelToSnakeCase()
@@ -58,7 +60,8 @@ private fun Klass.toTableMapping(): TableMapping {
         name = tableName,
         klass = this,
         columns = columns,
-        objectConstructor = objectConstructor
+        objectConstructor = objectConstructor,
+        schema = tableAnnotation?.schema,
     )
 }
 
@@ -256,7 +259,7 @@ private fun KlassFunction.toQueryMethodWhere(
         "SELECT ${returnKlassTableMapping.columns.joinToString { "\"${it.column.name}\"" }} "
     }
 
-    val fromClause = "FROM \"${mappedKlass.name}\" "
+    val fromClause = "FROM ${mappedKlass.fullTableName()}"
     val whereClause = "WHERE ${where.value.replace(parameterPlaceholderRegex, "?")}"
 
     val functionParatmerNameToPosition = parameters.mapIndexed { x, it -> it.name to x }.toMap()
@@ -361,7 +364,7 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
         """.trimIndent()
     }
 
-    val from = """FROM "${repoMappedKlass.name}""""
+    val from = "FROM ${repoMappedKlass.fullTableName()}"
 
     val whereClause = """
         WHERE ${
@@ -409,7 +412,7 @@ enum class Op { EQ, IN }
 
 private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
     val insert = """
-        INSERT INTO "${mappedKlass.name}" 
+        INSERT INTO ${mappedKlass.fullTableName()}
         (${mappedKlass.columns.joinToString { "\"${it.column.name}\"" }})
         VALUES (${mappedKlass.columns.joinToString { "?" }})
     """.trimIndent()
@@ -448,7 +451,7 @@ private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
 }
 
 private fun deleteAllQuery(mappedKlass: TableMapping): QueryMethod {
-    val delete = """DELETE FROM "${mappedKlass.name}" """.trimMargin()
+    val delete = "DELETE FROM ${mappedKlass.fullTableName()}".trimMargin()
 
     return QueryMethod(
         name = "saveAll",
@@ -464,7 +467,7 @@ private fun deleteAllQuery(mappedKlass: TableMapping): QueryMethod {
 private fun findAllQuery(mappedKlass: TableMapping): QueryMethod {
     val select = """
         SELECT ${mappedKlass.columns.joinToString { "\"${it.column.name}\"" }}
-        FROM "${mappedKlass.name}" 
+        FROM ${mappedKlass.fullTableName()}
     """.trimIndent()
 
     return QueryMethod(
@@ -510,6 +513,8 @@ private fun flattenToColumns(klass: Klass, path: List<String> = emptyList()): Li
         }
     }
 }
+
+private fun TableMapping.fullTableName(): String = listOfNotNull(schema, name).joinToString(".") { "\"$it\"" }
 
 private fun extractPostrgresType(
     columnAnnotation: Column?,

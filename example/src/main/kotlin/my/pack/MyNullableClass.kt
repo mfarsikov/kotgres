@@ -3,6 +3,7 @@ package my.pack
 import kotgres.annotations.Id
 import kotgres.annotations.PostgresRepository
 import kotgres.annotations.Query
+import kotgres.annotations.Table
 import kotgres.annotations.Where
 import kotgres.aux.Repository
 import java.sql.Date
@@ -12,6 +13,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.*
 
+@Table(schema = "s")
 data class MyNullableClass(
     @Id
     val id: String,
@@ -69,7 +71,7 @@ interface MyNullableClassRepository : Repository<MyNullableClass> {
 
     fun selectProjection(proc: String?): NullableProjectionOfMyClass?
 
-    @Query("select id, capacity, date, list from my_nullable_class where proc IS NOT DISTINCT FROM :proc")
+    @Query("select id, capacity, date, list from s.my_nullable_class where proc IS NOT DISTINCT FROM :proc")
     fun selectProjectionCustomQuery(proc: String?): NullableProjectionOfMyClass?
 
     @Where("proc IS NOT DISTINCT FROM :proc")
@@ -78,15 +80,15 @@ interface MyNullableClassRepository : Repository<MyNullableClass> {
     @Where("id = ANY (:id)")
     fun selectProjectionWhere(id: List<String>): List<NullableProjectionOfMyClass>
 
-    @Query("select date from my_nullable_class where id = :id")
+    @Query("select date from s.my_nullable_class where id = :id")
     fun selectDate(id: String): Date?
 
-    @Query("select date from my_nullable_class where proc IS NOT DISTINCT FROM :proc")
+    @Query("select date from s.my_nullable_class where proc IS NOT DISTINCT FROM :proc")
     fun selectDates(proc: String?): List<Date?>
 
-    @Query("update my_nullable_class set date = :date where id = :id")
+    @Query("update s.my_nullable_class set date = :date where id = :id")
     fun update(id: String, date: Date?)
 
-    @Query("select id, date, list, capacity from my_nullable_class where date = ANY (:date)")
+    @Query("select id, date, list, capacity from s.my_nullable_class where date = ANY (:date)")
     fun customSelectWhereDatesIn(date: List<Date>): List<NullableProjectionOfMyClass>
 }

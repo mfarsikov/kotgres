@@ -1,4 +1,6 @@
-create table "my_nullable_class"
+create schema s;
+
+create table s.my_nullable_class
 (
     "id"              text primary key,
     "name"            text,

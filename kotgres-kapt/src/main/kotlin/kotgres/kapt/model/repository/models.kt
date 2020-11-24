@@ -21,7 +21,7 @@ data class QueryMethod(
     val query: String,
     val queryParameters: List<QueryParameter>,
     val returnType: Type, //TODO remove?
-    val returnKlass: Klass,
+    val trueReturnType: Type,
     val returnsCollection: Boolean,
     val objectConstructor: ObjectConstructor?,
     val returnsScalar: Boolean = false,

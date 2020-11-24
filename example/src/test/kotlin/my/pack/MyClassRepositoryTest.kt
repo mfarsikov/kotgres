@@ -21,7 +21,7 @@ class MyClassRepositoryTest {
             TestUtil.runMigrations()
         }
 
-        val phone = MyClass(
+        val item = MyClass(
             id = "13",
             name = "iphone13",
             myNestedClass = MyNestedClass(
@@ -61,7 +61,7 @@ class MyClassRepositoryTest {
     fun rollback() {
 
         db.transaction {
-            myClassRepository.save(phone)
+            myClassRepository.save(item)
             rollback()
         }
 
@@ -73,7 +73,7 @@ class MyClassRepositoryTest {
     fun `rollback on exception`() {
         try {
             db.transaction {
-                myClassRepository.save(phone)
+                myClassRepository.save(item)
                 error("")
             }
         } catch (ex: IllegalStateException) {
@@ -87,18 +87,18 @@ class MyClassRepositoryTest {
     fun save() {
 
         db.transaction {
-            myClassRepository.save(phone)
+            myClassRepository.save(item)
         }
 
         val phones2 = db.transaction(readOnly = true) { myClassRepository.findAll() }
 
-        assert(phones2 == listOf(phone))
+        assert(phones2 == listOf(item))
     }
 
     @Test
     fun saveAll() {
 
-        val phones = listOf(phone, phone.copy(id = "14"))
+        val phones = listOf(item, item.copy(id = "14"))
 
         db.transaction {
             myClassRepository.saveAll(phones)
@@ -113,26 +113,26 @@ class MyClassRepositoryTest {
     @Test
     fun update() {
 
-        db.transaction { myClassRepository.save(phone) }
-        db.transaction { myClassRepository.save(phone.copy(name = "iphone2")) }
+        db.transaction { myClassRepository.save(item) }
+        db.transaction { myClassRepository.save(item.copy(name = "iphone2")) }
 
         val phones = db.transaction(readOnly = true) { myClassRepository.findAll() }
 
-        assert(phones == listOf(phone.copy(name = "iphone2")))
+        assert(phones == listOf(item.copy(name = "iphone2")))
     }
 
     @Test
     fun `query method returns an entity`() {
-        db.transaction { myClassRepository.save(phone) }
+        db.transaction { myClassRepository.save(item) }
 
-        val found = db.transaction(readOnly = true) { myClassRepository.findById(phone.id) }
+        val found = db.transaction(readOnly = true) { myClassRepository.findById(item.id) }
 
-        assert(found == phone)
+        assert(found == item)
     }
 
     @Test()
     fun `single result query method throws if there are more than one result`() {
-        db.transaction { myClassRepository.saveAll(listOf(phone, phone.copy(id = "14"))) }
+        db.transaction { myClassRepository.saveAll(listOf(item, item.copy(id = "14"))) }
 
         expect<IllegalStateException> {
             db.transaction(readOnly = true) { myClassRepository.findSingleBySpecProc("bionic13") }
@@ -142,7 +142,7 @@ class MyClassRepositoryTest {
     @Test
     fun `nullable query method returns null if there is no result`() {
 
-        val found = db.transaction(readOnly = true) { myClassRepository.findById(phone.id) }
+        val found = db.transaction(readOnly = true) { myClassRepository.findById(item.id) }
 
         assert(found == null)
     }
@@ -150,26 +150,26 @@ class MyClassRepositoryTest {
     @Test
     fun `not null method throws if there is no result`() {
         expect<NoSuchElementException> {
-            db.transaction(readOnly = true) { myClassRepository.findSingleById(phone.id) }
+            db.transaction(readOnly = true) { myClassRepository.findSingleById(item.id) }
         }
     }
 
     @Test
     fun `multiple parameters combined with AND`() {
-        db.transaction { myClassRepository.save(phone) }
+        db.transaction { myClassRepository.save(item) }
 
         fun `find by id and version`(id: String, version: Int) =
             db.transaction(readOnly = true) { myClassRepository.findByIdAndVersion(id, version) }
 
         all(
-            { assert(`find by id and version`("13", 13) == phone) },
+            { assert(`find by id and version`("13", 13) == item) },
             { assert(`find by id and version`("13", 14) == null) },
         )
     }
 
     @Test
     fun `@Where annotation works`() {
-        db.transaction { myClassRepository.save(phone) }
+        db.transaction { myClassRepository.save(item) }
 
         fun `test @Where`(
             capacity: String,
@@ -184,9 +184,9 @@ class MyClassRepositoryTest {
         }
 
         all(
-            { assert(`test @Where`("13wh", 13, "2010-01-01") == listOf(phone)) },
-            { assert(`test @Where`("13wh", 13, "2010-01-02") == listOf(phone)) },
-            { assert(`test @Where`("13wh", 12, "2010-01-02") == listOf(phone)) },
+            { assert(`test @Where`("13wh", 13, "2010-01-01") == listOf(item)) },
+            { assert(`test @Where`("13wh", 13, "2010-01-02") == listOf(item)) },
+            { assert(`test @Where`("13wh", 12, "2010-01-02") == listOf(item)) },
             { assert(`test @Where`("12wh", 12, "2010-01-02") == emptyList<MyClass>()) },
             { assert(`test @Where`("13wh", 12, "2009-01-01") == emptyList<MyClass>()) },
         )
@@ -194,130 +194,130 @@ class MyClassRepositoryTest {
 
     @Test
     fun `search by timestamp`() {
-        db.transaction { myClassRepository.save(phone) }
+        db.transaction { myClassRepository.save(item) }
 
         fun `find by timestamp`(ts: String) =
             db.transaction { this.myClassRepository.findByTimestamp(Timestamp.from(Instant.parse(ts))) }
 
         all(
-            { assert(`find by timestamp`("2010-01-01T00:00:00.000Z") == listOf(phone)) },
+            { assert(`find by timestamp`("2010-01-01T00:00:00.000Z") == listOf(item)) },
             { assert(`find by timestamp`("2010-01-01T00:00:00.001Z") == emptyList<MyClass>()) },
         )
     }
 
     @Test
     fun `search by uuid`() {
-        db.transaction { myClassRepository.save(phone) }
+        db.transaction { myClassRepository.save(item) }
 
         fun `find by uuid`(uuid: String) =
             db.transaction { this.myClassRepository.findByUUID(UUID.fromString(uuid)) }
 
         all(
-            { assert(`find by uuid`("66832deb-1864-42b1-b057-e65c28d39a4e") == phone) },
+            { assert(`find by uuid`("66832deb-1864-42b1-b057-e65c28d39a4e") == item) },
             { assert(`find by uuid`("00000000-0000-0000-0000-000000000001") == null) },
         )
     }
 
     @Test
     fun `search by time`() {
-        db.transaction { myClassRepository.save(phone) }
+        db.transaction { myClassRepository.save(item) }
 
         fun `find by time`(time: String) =
             db.transaction { this.myClassRepository.findByTime(LocalTime.parse(time)) }
 
         all(
-            { assert(`find by time`("00:00:00") == listOf(phone)) },
+            { assert(`find by time`("00:00:00") == listOf(item)) },
             { assert(`find by time`("00:00:01") == emptyList<MyClass>()) },
         )
     }
 
     @Test
     fun `search by local date`() {
-        db.transaction { myClassRepository.save(phone) }
+        db.transaction { myClassRepository.save(item) }
 
         fun `find by local date`(time: String) =
             db.transaction { this.myClassRepository.findByLocalDate(LocalDate.parse(time)) }
 
         all(
-            { assert(`find by local date`("2010-01-01") == listOf(phone)) },
+            { assert(`find by local date`("2010-01-01") == listOf(item)) },
             { assert(`find by local date`("2010-01-02") == emptyList<MyClass>()) },
         )
     }
 
     @Test
     fun `search by local date time`() {
-        db.transaction { myClassRepository.save(phone) }
+        db.transaction { myClassRepository.save(item) }
 
         fun `find by local date time`(time: String) =
             db.transaction { this.myClassRepository.findByLocalDateTime(LocalDateTime.parse(time)) }
 
         all(
-            { assert(`find by local date time`("2010-01-01T00:00:00") == listOf(phone)) },
+            { assert(`find by local date time`("2010-01-01T00:00:00") == listOf(item)) },
             { assert(`find by local date time`("2010-01-02T00:00:00") == emptyList<MyClass>()) },
         )
     }
 
     @Test
     fun `search by enum`() {
-        db.transaction { myClassRepository.save(phone) }
+        db.transaction { myClassRepository.save(item) }
 
         fun `find by enum`(mode: Mode) =
             db.transaction { this.myClassRepository.findByMode(mode) }
 
         all(
-            { assert(`find by enum`(Mode.OFF) == listOf(phone)) },
+            { assert(`find by enum`(Mode.OFF) == listOf(item)) },
             { assert(`find by enum`(Mode.ON) == emptyList<MyClass>()) },
         )
     }
 
     @Test
     fun `select projection`() {
-        db.transaction { myClassRepository.save(phone) }
+        db.transaction { myClassRepository.save(item) }
 
         fun `find by proc`(proc: String) =
             db.transaction { this.myClassRepository.selectProjection(proc) }
 
         all(
-            { assert(`find by proc`("bionic13") == ProjectionOfMyClass(phone.id, phone.date, listOf("a", "b", "c"))) },
+            { assert(`find by proc`("bionic13") == ProjectionOfMyClass(item.id, item.date, listOf("a", "b", "c"))) },
             { assert(`find by proc`("bionic14") == null) },
         )
     }
 
     @Test
     fun `select projection in custom query`() {
-        db.transaction { myClassRepository.save(phone) }
+        db.transaction { myClassRepository.save(item) }
 
         fun `find by proc`(proc: String) =
             db.transaction { this.myClassRepository.selectProjectionCustomQuery(proc) }
 
         all(
-            { assert(`find by proc`("bionic13") == ProjectionOfMyClass(phone.id, phone.date, listOf("a", "b", "c"))) },
+            { assert(`find by proc`("bionic13") == ProjectionOfMyClass(item.id, item.date, listOf("a", "b", "c"))) },
             { assert(`find by proc`("bionic14") == null) },
         )
     }
 
     @Test
     fun `select projection in custom where`() {
-        db.transaction { myClassRepository.save(phone) }
+        db.transaction { myClassRepository.save(item) }
 
         fun `find by proc`(proc: String) =
             db.transaction { this.myClassRepository.selectProjectionWhere(proc) }
 
         all(
-            { assert(`find by proc`("bionic13") == ProjectionOfMyClass(phone.id, phone.date, phone.list)) },
+            { assert(`find by proc`("bionic13") == ProjectionOfMyClass(item.id, item.date, item.list)) },
             { assert(`find by proc`("bionic14") == null) },
         )
     }
 
     @Test
     fun `select scalar`() {
-        db.transaction { myClassRepository.save(phone) }
+        db.transaction { myClassRepository.save(item) }
 
         fun `select date by id`(id: String) =
             db.transaction { myClassRepository.selectDate(id) }
 
         all(
-            { assert(`select date by id`("13") == phone.date) },
+            { assert(`select date by id`("13") == item.date) },
             { assert(`select date by id`("14") == null) },
         )
     }
@@ -325,15 +325,15 @@ class MyClassRepositoryTest {
     @Test
     fun `select scalars`() {
         db.transaction {
-            myClassRepository.save(phone)
-            myClassRepository.save(phone.copy(id = "14"))
+            myClassRepository.save(item)
+            myClassRepository.save(item.copy(id = "14"))
         }
 
         fun `select date by proc`(proc: String) =
             db.transaction { myClassRepository.selectDates(proc) }
 
         all(
-            { assert(`select date by proc`("bionic13") == listOf(phone.date, phone.date)) },
+            { assert(`select date by proc`("bionic13") == listOf(item.date, item.date)) },
             { assert(`select date by proc`("bionic14") == emptyList<Date>()) },
         )
     }
@@ -341,13 +341,13 @@ class MyClassRepositoryTest {
     @Test
     fun `custom update`() {
         //GIVEN
-        db.transaction { myClassRepository.save(phone) }
+        db.transaction { myClassRepository.save(item) }
 
         //WHEN
-        db.transaction { myClassRepository.update(phone.id, Date.valueOf("2020-12-31")) }
+        db.transaction { myClassRepository.update(item.id, Date.valueOf("2020-12-31")) }
 
         //THEN
-        val date = db.transaction { myClassRepository.selectDate(phone.id) }
+        val date = db.transaction { myClassRepository.selectDate(item.id) }
 
         assert(date == Date.valueOf("2020-12-31"))
     }
@@ -355,7 +355,7 @@ class MyClassRepositoryTest {
     @Test
     fun `select IN`() {
 
-        val phones = listOf(phone, phone.copy(id = "14"))
+        val phones = listOf(item, item.copy(id = "14"))
         db.transaction {
             myClassRepository.saveAll(phones)
         }
@@ -372,7 +372,7 @@ class MyClassRepositoryTest {
 
     @Test
     fun `select IN with @Where`() {
-        val phones = listOf(phone, phone.copy(id = "14"))
+        val phones = listOf(item, item.copy(id = "14"))
         db.transaction {
             myClassRepository.saveAll(phones)
         }
@@ -385,10 +385,10 @@ class MyClassRepositoryTest {
                 assert(
                     `id in`(listOf("13", "14")) == listOf(
                         ProjectionOfMyClass(
-                            id = phone.id,
-                            date = phone.date,
-                            list = phone.list
-                        ), ProjectionOfMyClass(id = "14", date = phone.date, list = phone.list)
+                            id = item.id,
+                            date = item.date,
+                            list = item.list
+                        ), ProjectionOfMyClass(id = "14", date = item.date, list = item.list)
                     )
                 )
             },
@@ -399,7 +399,7 @@ class MyClassRepositoryTest {
 
     @Test
     fun `select IN with custom query`() {
-        val phones = listOf(phone)
+        val phones = listOf(item)
         db.transaction {
             myClassRepository.saveAll(phones)
         }
@@ -411,7 +411,7 @@ class MyClassRepositoryTest {
             {
                 assert(
                     `dates in`(listOf("2010-01-01", "2010-01-02")) == listOf(
-                        ProjectionOfMyClass(id = phone.id, date = phone.date, list = phone.list)
+                        ProjectionOfMyClass(id = item.id, date = item.date, list = item.list)
                     )
                 )
             },
@@ -420,7 +420,7 @@ class MyClassRepositoryTest {
 
     @Test
     fun `save-read null value`() {
-        val noNamePhone = phone.copy(name = null)
+        val noNamePhone = item.copy(name = null)
 
         db.transaction { myClassRepository.save(noNamePhone) }
         val fromDb = db.transaction { myClassRepository.findById(noNamePhone.id) }
@@ -430,7 +430,7 @@ class MyClassRepositoryTest {
 
     @Test
     fun `where name is null`() {
-        val noNamePhone = phone.copy(name = null)
+        val noNamePhone = item.copy(name = null)
 
         db.transaction { myClassRepository.save(noNamePhone) }
         val fromDb = db.transaction { myClassRepository.findFirstByName(null) }
@@ -440,8 +440,8 @@ class MyClassRepositoryTest {
 
     @Test
     fun `find first does not fail on multiple results`() {
-        val noNamePhone1 = phone.copy(name = null)
-        val noNamePhone2 = phone.copy(id = "14", name = null)
+        val noNamePhone1 = item.copy(name = null)
+        val noNamePhone2 = item.copy(id = "14", name = null)
 
         db.transaction { myClassRepository.saveAll(listOf(noNamePhone1, noNamePhone2)) }
         val fromDb = db.transaction { myClassRepository.findFirstByName(null) }
@@ -452,8 +452,8 @@ class MyClassRepositoryTest {
     @Test
     fun `delete by date`() {
 
-        db.transaction { myClassRepository.save(phone) }
-        db.transaction { myClassRepository.deleteByDate(phone.date) }
+        db.transaction { myClassRepository.save(item) }
+        db.transaction { myClassRepository.deleteByDate(item.date) }
         val fromDb = db.transaction { myClassRepository.findAll() }
 
         assert(fromDb.isEmpty())
@@ -462,15 +462,28 @@ class MyClassRepositoryTest {
     @Test
     fun `limit by 3 elemets`() {
         val fourPhones = listOf(
-            phone,
-            phone.copy(id = "14"),
-            phone.copy(id = "15"),
-            phone.copy(id = "16"),
+            item,
+            item.copy(id = "14"),
+            item.copy(id = "15"),
+            item.copy(id = "16"),
         )
 
         db.transaction { myClassRepository.saveAll(fourPhones) }
 
-        val limited = db.transaction { myClassRepository.findByDate(phone.date) }
+        val limited = db.transaction { myClassRepository.findByDate(item.date) }
         assert(limited.size == 3)
+    }
+
+    @Test
+    fun `select list of enums`() {
+        val items = listOf(
+            item,
+            item.copy(id = "14", enum = Mode.ON),
+        )
+
+        db.transaction { myClassRepository.saveAll(items) }
+
+        val enums = db.transaction { myClassRepository.findAllEnums() }
+        assert(enums.toSet() == setOf(Mode.ON, Mode.OFF))
     }
 }

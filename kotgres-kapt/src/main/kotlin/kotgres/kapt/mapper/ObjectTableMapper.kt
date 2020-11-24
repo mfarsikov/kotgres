@@ -10,7 +10,6 @@ import kotgres.annotations.Table
 import kotgres.annotations.Where
 import kotgres.aux.ColumnDefinition
 import kotgres.aux.PostgresType
-import kotgres.kapt.Logger
 import kotgres.kapt.model.db.ColumnMapping
 import kotgres.kapt.model.db.TableMapping
 import kotgres.kapt.model.klass.Field
@@ -56,6 +55,7 @@ private fun Klass.toTableMapping(): TableMapping {
     val columns = flattenToColumns(this)
 
     val objectConstructor = if (name != KotlinType.UNIT.qn) objectConstructor(this, columns) else null
+
     return TableMapping(
         name = tableName,
         klass = this,
@@ -71,37 +71,36 @@ private fun objectConstructor(
     parentField: String? = null,
     path: List<String> = emptyList()
 ): ObjectConstructor {
-    return if (klass.fields.isEmpty()) {
-        val column = try {
-            columns.single { it.path == path }
-        } catch (ex: NoSuchElementException) {
-            Logger.error("path: $path, columns: $columns")
-            throw ex
-        }
+    return when {
+        klass.fields.isEmpty() -> {
+            val column = columns.singleOrNull { it.path == path }
+                ?: error("path: $path, columns: $columns")
 
-        ObjectConstructor.Extractor(
-            resultSetGetterName = getterSetterName(column),
-            columnName = column.column.name,
-            fieldName = parentField,
-            fieldType = column.type.klass.name,
-            isJson = column.column.type == PostgresType.JSONB,
-            isEnum = column.type.klass.isEnum,
-            isPrimitive = column.type.klass.name in primitives,
-            isNullable = column.type.nullability == Nullability.NULLABLE
-        )
-    } else {
-        ObjectConstructor.Constructor(
-            fieldName = parentField,
-            className = klass.name,
-            nestedFields = klass.fields.map {
-                objectConstructor(
-                    it.type.klass,
-                    columns,
-                    it.name,
-                    path + it.name
-                )
-            }
-        )
+            ObjectConstructor.Extractor(
+                resultSetGetterName = getterSetterName(column),
+                columnName = column.column.name,
+                fieldName = parentField,
+                fieldType = column.type.klass.name,
+                isJson = column.column.type == PostgresType.JSONB,
+                isEnum = column.type.klass.isEnum,
+                isPrimitive = column.type.klass.name in primitives,
+                isNullable = column.type.nullability == Nullability.NULLABLE
+            )
+        }
+        else -> {
+            ObjectConstructor.Constructor(
+                fieldName = parentField,
+                className = klass.name,
+                nestedFields = klass.fields.map {
+                    objectConstructor(
+                        it.type.klass,
+                        columns,
+                        it.name,
+                        path + it.name
+                    )
+                }
+            )
+        }
     }
 }
 
@@ -164,23 +163,25 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
     }
 
     val kotlinType = KotlinType.of(trueReturnType.klass.name)
-    val isScalar = kotlinType != null
+    val isScalar = kotlinType != null || trueReturnType.klass.isEnum
 
-    val constructor = if (!isScalar) {
-        trueReturnType.klass.toTableMapping().objectConstructor
-    } else if (kotlinType == KotlinType.UNIT) {
-        null
-    } else {
-        ObjectConstructor.Extractor(
-            resultSetGetterName = kotlinType!!.jdbcSetterName!!,
-            columnName = "N/A",//TODO introduce another class?
-            fieldName = null,
-            fieldType = kotlinType.qn,
-            isJson = false,//TODO
-            isEnum = false,//TODO
-            isPrimitive = trueReturnType.klass.name in primitives,
-            isNullable = trueReturnType.nullability == Nullability.NULLABLE,
-        )
+
+    val constructor = when {
+        kotlinType == KotlinType.UNIT -> null
+        isScalar -> {
+            ObjectConstructor.Extractor(
+                resultSetGetterName = if (trueReturnType.klass.isEnum) "String" else kotlinType!!.jdbcSetterName!!,
+                columnName = "N/A",//TODO introduce another class?
+                fieldName = null,
+                fieldType = if (trueReturnType.klass.isEnum) trueReturnType.klass.name else kotlinType!!.qn,
+                isJson = false,//TODO
+                isEnum = trueReturnType.klass.isEnum,
+                isPrimitive = trueReturnType.klass.name in primitives,
+                isNullable = trueReturnType.nullability == Nullability.NULLABLE,
+            )
+        }
+
+        else -> trueReturnType.klass.toTableMapping().objectConstructor
     }
 
     val functionParatmerNameToPosition = parameters.mapIndexed { x, it -> it.name to x }.toMap()
@@ -209,7 +210,7 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
         name = name,
         query = query.replace(parameterPlaceholderRegex, "?"),
         returnType = returnType,
-        returnKlass = trueReturnType.klass,
+        trueReturnType = trueReturnType,
         returnsCollection = returnsCollection,
         queryParameters = queryParameters,
         objectConstructor = constructor,
@@ -222,13 +223,13 @@ private fun KlassFunction.toQueryMethodWhere(
 ): QueryMethod {
 
     val returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List")
-    val returnKlass = if (returnsCollection) {
-        returnType.typeParameters.single().klass
+    val trueReturnType = if (returnsCollection) {
+        returnType.typeParameters.single()
     } else {
-        returnType.klass
+        returnType
     }
 
-    val returnKlassTableMapping = returnKlass.toTableMapping()
+    val returnKlassTableMapping = trueReturnType.klass.toTableMapping()
 
     //TODO check projection has same fields as mapped class
 
@@ -292,7 +293,7 @@ private fun KlassFunction.toQueryMethodWhere(
         name = name,
         query = listOfNotNull(selectOrDeleteClause, fromClause, whereClause, limitClause).joinToString("\n"),
         returnType = returnType,
-        returnKlass = returnKlass,
+        trueReturnType = trueReturnType,
         returnsCollection = returnsCollection,
         queryParameters = queryParameters,
         objectConstructor = returnKlassTableMapping.objectConstructor
@@ -303,20 +304,20 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
 
     val returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List")
 
-    val returnKlass = if (returnsCollection) {
-        returnType.typeParameters.single().klass
+    val trueReturnType = if (returnsCollection) {
+        returnType.typeParameters.single()
     } else {
-        returnType.klass
+        returnType
     }
 
-    val returnKlassTableMapping = returnKlass.toTableMapping()
+    val returnKlassTableMapping = trueReturnType.klass.toTableMapping()
 
     val columnsByFieldName = repoMappedKlass.columns.associateBy { it.path.last() }
 
     val whereColumnsByParameters = parameters.associateWith {
         columnsByFieldName[it.name]
             ?: error(
-                "cannot find field '${it.name}', among: ${columnsByFieldName.keys}, in class: ${returnKlass.name}, " +
+                "cannot find field '${it.name}', among: ${columnsByFieldName.keys}, in class: ${trueReturnType.klass.name}, " +
                         "function: ${name}"
             )
     }
@@ -396,7 +397,7 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
             )
         },
         returnType = returnType,
-        returnKlass = returnKlass,
+        trueReturnType = trueReturnType,
         returnsCollection = returnsCollection,
         objectConstructor = returnKlassTableMapping.objectConstructor
     )
@@ -446,7 +447,7 @@ private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
         returnType = Type(Klass(KotlinType.UNIT.qn)),
         returnsCollection = false,
         objectConstructor = null,
-        returnKlass = Klass(KotlinType.UNIT.qn),
+        trueReturnType = Type(Klass(KotlinType.UNIT.qn)),
     )
 }
 
@@ -458,9 +459,9 @@ private fun deleteAllQuery(mappedKlass: TableMapping): QueryMethod {
         query = delete,
         queryParameters = emptyList(),
         returnType = Type(Klass(KotlinType.UNIT.qn)),
+        trueReturnType = Type(Klass(KotlinType.UNIT.qn)),
         returnsCollection = false,
         objectConstructor = null,
-        returnKlass = Klass(KotlinType.UNIT.qn)
     )
 }
 
@@ -480,7 +481,7 @@ private fun findAllQuery(mappedKlass: TableMapping): QueryMethod {
         ),
         returnsCollection = true,
         objectConstructor = mappedKlass.objectConstructor,
-        returnKlass = mappedKlass.klass,
+        trueReturnType = Type(mappedKlass.klass),
     )
 }
 

@@ -20,7 +20,7 @@ class MyNullableClassRepositoryTest {
             TestUtil.runMigrations()
         }
 
-        val phone = MyNullableClass(
+        val item = MyNullableClass(
             id = "13",
             name = null,
             myNestedClass = MyNullableNestedClass(
@@ -59,7 +59,7 @@ class MyNullableClassRepositoryTest {
     fun rollback() {
 
         db.transaction {
-            myNullableClassRepository.save(phone)
+            myNullableClassRepository.save(item)
             rollback()
         }
 
@@ -71,7 +71,7 @@ class MyNullableClassRepositoryTest {
     fun `rollback on exception`() {
         try {
             db.transaction {
-                myNullableClassRepository.save(phone)
+                myNullableClassRepository.save(item)
                 error("")
             }
         } catch (ex: IllegalStateException) {
@@ -85,18 +85,18 @@ class MyNullableClassRepositoryTest {
     fun save() {
 
         db.transaction {
-            myNullableClassRepository.save(phone)
+            myNullableClassRepository.save(item)
         }
 
         val phones2 = db.transaction(readOnly = true) { myNullableClassRepository.findAll() }
 
-        assert(phones2 == listOf(phone))
+        assert(phones2 == listOf(item))
     }
 
     @Test
     fun saveAll() {
 
-        val phones = listOf(phone, phone.copy(id = "14"))
+        val phones = listOf(item, item.copy(id = "14"))
 
         db.transaction {
             myNullableClassRepository.saveAll(phones)
@@ -111,26 +111,26 @@ class MyNullableClassRepositoryTest {
     @Test
     fun update() {
 
-        db.transaction { myNullableClassRepository.save(phone) }
-        db.transaction { myNullableClassRepository.save(phone.copy(name = "iphone2")) }
+        db.transaction { myNullableClassRepository.save(item) }
+        db.transaction { myNullableClassRepository.save(item.copy(name = "iphone2")) }
 
         val phones = db.transaction(readOnly = true) { myNullableClassRepository.findAll() }
 
-        assert(phones == listOf(phone.copy(name = "iphone2")))
+        assert(phones == listOf(item.copy(name = "iphone2")))
     }
 
     @Test
     fun `query method returns an entity`() {
-        db.transaction { myNullableClassRepository.save(phone) }
+        db.transaction { myNullableClassRepository.save(item) }
 
-        val found = db.transaction(readOnly = true) { myNullableClassRepository.findById(phone.id) }
+        val found = db.transaction(readOnly = true) { myNullableClassRepository.findById(item.id) }
 
-        assert(found == phone)
+        assert(found == item)
     }
 
     @Test()
     fun `single result query method throws if there are more than one result`() {
-        db.transaction { myNullableClassRepository.saveAll(listOf(phone, phone.copy(id = "14"))) }
+        db.transaction { myNullableClassRepository.saveAll(listOf(item, item.copy(id = "14"))) }
 
         expect<IllegalStateException> {
             db.transaction(readOnly = true) { myNullableClassRepository.findSingleBySpecProc(null) }
@@ -140,7 +140,7 @@ class MyNullableClassRepositoryTest {
     @Test
     fun `nullable query method returns null if there is no result`() {
 
-        val found = db.transaction(readOnly = true) { myNullableClassRepository.findById(phone.id) }
+        val found = db.transaction(readOnly = true) { myNullableClassRepository.findById(item.id) }
 
         assert(found == null)
     }
@@ -148,26 +148,26 @@ class MyNullableClassRepositoryTest {
     @Test
     fun `not null method throws if there is no result`() {
         expect<NoSuchElementException> {
-            db.transaction(readOnly = true) { myNullableClassRepository.findByIdOrThrow(phone.id) }
+            db.transaction(readOnly = true) { myNullableClassRepository.findByIdOrThrow(item.id) }
         }
     }
 
     @Test
     fun `multiple parameters combined with AND`() {
-        db.transaction { myNullableClassRepository.save(phone) }
+        db.transaction { myNullableClassRepository.save(item) }
 
         fun `find by id and version`(id: String, version: Int?) =
             db.transaction(readOnly = true) { myNullableClassRepository.findByIdAndVersion(id, version) }
 
         all(
-            { assert(`find by id and version`("13", null) == phone) },
+            { assert(`find by id and version`("13", null) == item) },
             { assert(`find by id and version`("13", 14) == null) },
         )
     }
 
     @Test
     fun `@Where annotation works`() {
-        db.transaction { myNullableClassRepository.save(phone) }
+        db.transaction { myNullableClassRepository.save(item) }
 
         fun `test @Where`(
             capacity: String?,
@@ -182,105 +182,114 @@ class MyNullableClassRepositoryTest {
         }
 
         all(
-            { assert(`test @Where`(null, null, null) == listOf(phone)) },
+            { assert(`test @Where`(null, null, null) == listOf(item)) },
             { assert(`test @Where`("12wh", 12, "2010-01-02") == emptyList<MyClass>()) },
         )
     }
 
     @Test
     fun `search by timestamp`() {
-        db.transaction { myNullableClassRepository.save(phone) }
+        db.transaction { myNullableClassRepository.save(item) }
 
         fun `find by timestamp`(ts: String?) =
             db.transaction { this.myNullableClassRepository.findByTimestamp(ts?.let { Timestamp.from(Instant.parse(it)) }) }
 
         all(
-            { assert(`find by timestamp`(null) == listOf(phone)) },
+            { assert(`find by timestamp`(null) == listOf(item)) },
             { assert(`find by timestamp`("2010-01-01T00:00:00.001Z") == emptyList<MyClass>()) },
         )
     }
 
     @Test
     fun `search by uuid`() {
-        db.transaction { myNullableClassRepository.save(phone) }
+        db.transaction { myNullableClassRepository.save(item) }
 
         fun `find by uuid`(uuid: String?) =
-            db.transaction { this.myNullableClassRepository.findByUUID(uuid?.let{UUID.fromString(it)}) }
+            db.transaction { this.myNullableClassRepository.findByUUID(uuid?.let { UUID.fromString(it) }) }
 
         all(
-            { assert(`find by uuid`(null) == phone) },
+            { assert(`find by uuid`(null) == item) },
             { assert(`find by uuid`("00000000-0000-0000-0000-000000000001") == null) },
         )
     }
 
     @Test
     fun `search by time`() {
-        db.transaction { myNullableClassRepository.save(phone) }
+        db.transaction { myNullableClassRepository.save(item) }
 
         fun `find by time`(time: String?) =
             db.transaction { this.myNullableClassRepository.findByTime(time?.let { LocalTime.parse(it) }) }
 
         all(
-            { assert(`find by time`(null) == listOf(phone)) },
+            { assert(`find by time`(null) == listOf(item)) },
             { assert(`find by time`("00:00:01") == emptyList<MyClass>()) },
         )
     }
 
     @Test
     fun `search by local date`() {
-        db.transaction { myNullableClassRepository.save(phone) }
+        db.transaction { myNullableClassRepository.save(item) }
 
         fun `find by local date`(time: String?) =
             db.transaction { this.myNullableClassRepository.findByLocalDate(time?.let { LocalDate.parse(it) }) }
 
         all(
-            { assert(`find by local date`(null) == listOf(phone)) },
+            { assert(`find by local date`(null) == listOf(item)) },
             { assert(`find by local date`("2010-01-02") == emptyList<MyClass>()) },
         )
     }
 
     @Test
     fun `search by local date time`() {
-        db.transaction { myNullableClassRepository.save(phone) }
+        db.transaction { myNullableClassRepository.save(item) }
 
         fun `find by local date time`(time: String?) =
             db.transaction { this.myNullableClassRepository.findByLocalDateTime(time?.let { LocalDateTime.parse(it) }) }
 
         all(
-            { assert(`find by local date time`(null) == listOf(phone)) },
+            { assert(`find by local date time`(null) == listOf(item)) },
             { assert(`find by local date time`("2010-01-02T00:00:00") == emptyList<MyClass>()) },
         )
     }
 
     @Test
     fun `search by enum`() {
-        db.transaction { myNullableClassRepository.save(phone) }
+        db.transaction { myNullableClassRepository.save(item) }
 
         fun `find by enum`(mode: Mode) =
             db.transaction { this.myNullableClassRepository.findByMode(mode) }
 
         all(
-            { assert(`find by enum`(Mode.OFF) == listOf(phone)) },
+            { assert(`find by enum`(Mode.OFF) == listOf(item)) },
             { assert(`find by enum`(Mode.ON) == emptyList<MyClass>()) },
         )
     }
 
     @Test
     fun `select projection`() {
-        db.transaction { myNullableClassRepository.save(phone) }
+        db.transaction { myNullableClassRepository.save(item) }
 
         fun `find by proc`(proc: String?) =
             db.transaction { this.myNullableClassRepository.selectProjection(proc) }
 
         all(
-            { assert(`find by proc`(null) == NullableProjectionOfMyClass(phone.id, phone.date, phone.list, capacity = null)) },
+            {
+                assert(
+                    `find by proc`(null) == NullableProjectionOfMyClass(
+                        item.id,
+                        item.date,
+                        item.list,
+                        capacity = null
+                    )
+                )
+            },
             { assert(`find by proc`("bionic14") == null) },
         )
     }
 
     @Test
     fun `select projection in custom query`() {
-        db.transaction { myNullableClassRepository.save(phone) }
+        db.transaction { myNullableClassRepository.save(item) }
 
         fun `find by proc`(proc: String?) =
             db.transaction { this.myNullableClassRepository.selectProjectionCustomQuery(proc) }
@@ -289,8 +298,8 @@ class MyNullableClassRepositoryTest {
             {
                 assert(
                     `find by proc`(null) == NullableProjectionOfMyClass(
-                        phone.id,
-                        phone.date,
+                        item.id,
+                        item.date,
                         listOf("a", "b", "c"),
                         capacity = null
                     )
@@ -302,26 +311,35 @@ class MyNullableClassRepositoryTest {
 
     @Test
     fun `select projection in custom where`() {
-        db.transaction { myNullableClassRepository.save(phone) }
+        db.transaction { myNullableClassRepository.save(item) }
 
         fun `find by proc`(proc: String?) =
             db.transaction { this.myNullableClassRepository.selectProjectionWhere(proc) }
 
         all(
-            { assert(`find by proc`(null) == NullableProjectionOfMyClass(phone.id, phone.date, phone.list, capacity = null)) },
+            {
+                assert(
+                    `find by proc`(null) == NullableProjectionOfMyClass(
+                        item.id,
+                        item.date,
+                        item.list,
+                        capacity = null
+                    )
+                )
+            },
             { assert(`find by proc`("bionic14") == null) },
         )
     }
 
     @Test
     fun `select scalar`() {
-        db.transaction { myNullableClassRepository.save(phone) }
+        db.transaction { myNullableClassRepository.save(item) }
 
         fun `select date by id`(id: String) =
             db.transaction { myNullableClassRepository.selectDate(id) }
 
         all(
-            { assert(`select date by id`("13") == phone.date) },
+            { assert(`select date by id`("13") == item.date) },
             { assert(`select date by id`("14") == null) },
         )
     }
@@ -329,15 +347,15 @@ class MyNullableClassRepositoryTest {
     @Test
     fun `select scalars`() {
         db.transaction {
-            myNullableClassRepository.save(phone)
-            myNullableClassRepository.save(phone.copy(id = "14"))
+            myNullableClassRepository.save(item)
+            myNullableClassRepository.save(item.copy(id = "14"))
         }
 
         fun `select date by proc`(proc: String?) =
             db.transaction { myNullableClassRepository.selectDates(proc) }
 
         all(
-            { assert(`select date by proc`(null) == listOf(phone.date, phone.date)) },
+            { assert(`select date by proc`(null) == listOf(item.date, item.date)) },
             { assert(`select date by proc`("bionic14") == emptyList<Date>()) },
         )
     }
@@ -345,13 +363,13 @@ class MyNullableClassRepositoryTest {
     @Test
     fun `custom update`() {
         //GIVEN
-        db.transaction { myNullableClassRepository.save(phone.copy(date = Date.valueOf("2020-12-31"))) }
+        db.transaction { myNullableClassRepository.save(item.copy(date = Date.valueOf("2020-12-31"))) }
 
         //WHEN
-        db.transaction { myNullableClassRepository.update(phone.id,null ) }
+        db.transaction { myNullableClassRepository.update(item.id, null) }
 
         //THEN
-        val date = db.transaction { myNullableClassRepository.selectDate(phone.id) }
+        val date = db.transaction { myNullableClassRepository.selectDate(item.id) }
 
         assert(date == null)
     }
@@ -359,7 +377,7 @@ class MyNullableClassRepositoryTest {
     @Test
     fun `select IN`() {
 
-        val phones = listOf(phone, phone.copy(id = "14"))
+        val phones = listOf(item, item.copy(id = "14"))
         db.transaction {
             myNullableClassRepository.saveAll(phones)
         }
@@ -376,7 +394,7 @@ class MyNullableClassRepositoryTest {
 
     @Test
     fun `select IN with @Where`() {
-        val phones = listOf(phone, phone.copy(id = "14"))
+        val phones = listOf(item, item.copy(id = "14"))
         db.transaction {
             myNullableClassRepository.saveAll(phones)
         }
@@ -389,12 +407,12 @@ class MyNullableClassRepositoryTest {
                 assert(
                     `id in`(listOf("13", "14")) == listOf(
                         NullableProjectionOfMyClass(
-                            id = phone.id,
-                            date = phone.date,
-                            list = phone.list,
+                            id = item.id,
+                            date = item.date,
+                            list = item.list,
                             capacity = null
                         ),
-                        NullableProjectionOfMyClass(id = "14", date = phone.date, list = phone.list, capacity = null)
+                        NullableProjectionOfMyClass(id = "14", date = item.date, list = item.list, capacity = null)
                     )
                 )
             },
@@ -405,7 +423,7 @@ class MyNullableClassRepositoryTest {
 
     @Test
     fun `select IN with custom query`() {
-        val phones = listOf(phone.copy(date = Date.valueOf("2010-01-01")))
+        val phones = listOf(item.copy(date = Date.valueOf("2010-01-01")))
         db.transaction {
             myNullableClassRepository.saveAll(phones)
         }
@@ -417,7 +435,12 @@ class MyNullableClassRepositoryTest {
             {
                 assert(
                     `dates in`(listOf("2010-01-01", "2010-01-02")) == listOf(
-                        NullableProjectionOfMyClass(id = phone.id, date = Date.valueOf("2010-01-01"), list = phone.list, capacity = null)
+                        NullableProjectionOfMyClass(
+                            id = item.id,
+                            date = Date.valueOf("2010-01-01"),
+                            list = item.list,
+                            capacity = null
+                        )
                     )
                 )
             },
@@ -426,7 +449,7 @@ class MyNullableClassRepositoryTest {
 
     @Test
     fun `save-read null value`() {
-        val noNamePhone = phone.copy(name = null)
+        val noNamePhone = item.copy(name = null)
 
         db.transaction { myNullableClassRepository.save(noNamePhone) }
         val fromDb = db.transaction { myNullableClassRepository.findById(noNamePhone.id) }
@@ -436,11 +459,56 @@ class MyNullableClassRepositoryTest {
 
     @Test
     fun `where name is null`() {
-        val noNamePhone = phone.copy(name = null)
+        val noNamePhone = item.copy(name = null)
 
         db.transaction { myNullableClassRepository.save(noNamePhone) }
         val fromDb = db.transaction { myNullableClassRepository.findByName(null) }
 
         assert(fromDb == noNamePhone)
+    }
+
+    @Test
+    fun `nullable enum as result type`() {
+
+        db.transaction { myNullableClassRepository.saveAll(listOf(item, item.copy(id = "14", enum = null))) }
+
+        fun enum(id: String): Mode? {
+            return db.transaction { myNullableClassRepository.selectEnumWhereId(id) }
+        }
+
+        all(
+            { assert(enum(item.id) == Mode.OFF) },
+            { assert(enum("14") == null) },
+        )
+
+    }
+
+    @Test
+    fun `select by nullable enum`() {
+
+        db.transaction { myNullableClassRepository.saveAll(listOf(item, item.copy(id = "14", enum = null))) }
+
+        fun enum(enum: Mode?): List<MyNullableClass> {
+            return db.transaction { myNullableClassRepository.selectEnumWhereEnum(enum) }
+        }
+
+        all(
+            { assert(enum(null) == listOf(item.copy(id = "14", enum = null))) },
+            { assert(enum(Mode.OFF) == listOf(item)) },
+        )
+
+    }
+
+    @Test
+    fun `select list of enums`() {
+        val items = listOf(
+            item,
+            item.copy(id = "14", enum = null),
+        )
+
+        db.transaction { myNullableClassRepository.saveAll(items) }
+
+        val enums = db.transaction { myNullableClassRepository.findAllEnums() }
+        assert(enums.toSet() == setOf(null, Mode.OFF))
     }
 }

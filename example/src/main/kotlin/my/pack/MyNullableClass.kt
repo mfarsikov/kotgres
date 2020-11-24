@@ -28,7 +28,7 @@ data class MyNullableClass(
     val localDate: LocalDate?,
     val localDateTime: LocalDateTime?,
     val list: List<String>,
-    val enum: Mode,
+    val enum: Mode?,
 )
 
 
@@ -91,4 +91,12 @@ interface MyNullableClassRepository : Repository<MyNullableClass> {
 
     @Query("select id, date, list, capacity from s.my_nullable_class where date = ANY (:date)")
     fun customSelectWhereDatesIn(date: List<Date>): List<NullableProjectionOfMyClass>
+
+    @Query("select enum from s.my_nullable_class where id = :id")
+    fun selectEnumWhereId(id: String): Mode?
+
+    fun selectEnumWhereEnum(enum: Mode?): List<MyNullableClass>
+
+    @Query("select enum from s.my_nullable_class")
+    fun findAllEnums(): List<Mode?>
 }

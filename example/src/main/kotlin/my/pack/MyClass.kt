@@ -55,8 +55,10 @@ data class ProjectionOfMyClass(val id: String, val date: Date, val list: List<St
 interface MyClassRepository : Repository<MyClass> {
 
     fun findById(id: String): MyClass?
+
     @First
     fun findFirstByName(name: String?): MyClass?
+
     @Limit(3)
     fun findByDate(date: Date): List<MyClass>
     fun findSingleById(id: String): MyClass
@@ -102,4 +104,7 @@ interface MyClassRepository : Repository<MyClass> {
 
     @Query("select id, date, list from my_class where date = ANY (:date)")
     fun customSelectWhereDatesIn(date: List<Date>): List<ProjectionOfMyClass>
+
+    @Query("select enum from my_class")
+    fun findAllEnums(): List<Mode>
 }

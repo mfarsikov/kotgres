@@ -6,6 +6,7 @@ import com.squareup.kotlinpoet.FunSpec
 import com.squareup.kotlinpoet.KModifier
 import com.squareup.kotlinpoet.MemberName
 import com.squareup.kotlinpoet.ParameterSpec
+import com.squareup.kotlinpoet.ParameterizedTypeName
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.PropertySpec
 import com.squareup.kotlinpoet.TypeName
@@ -76,7 +77,12 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
             controlFlow("return connection.prepareStatement(query).use") {
                 queryMethod.queryParameters.sortedBy { it.positionInQuery }.forEach { param ->
                     if (param.isEnum) {
-                        addStatement("it.setString(%L, %L.name)", param.positionInQuery, param.path)
+                        addStatement(
+                            "it.setString(%L, %L%L.name)",
+                            param.positionInQuery,
+                            param.path,
+                            if (param.kotlinType.nullability == Nullability.NULLABLE) "?" else ""
+                        )
                     } else if (param.convertToArray) {
                         addStatement(
                             "it.setArray(%L, connection.createArrayOf(%S, %L.toTypedArray()))",
@@ -120,7 +126,11 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
 }
 
 private fun CodeBlockBuilder.generateCollectionExtractor(queryMethod: QueryMethod) {
-    addStatement("val acc = mutableListOf<%T>()", queryMethod.returnKlass.toClassName())
+    addStatement(
+        "val acc = mutableListOf<%T%L>()",
+        queryMethod.trueReturnType.klass.toClassName(),
+        if (queryMethod.trueReturnType.nullability == Nullability.NULLABLE) "?" else "",
+    )
     `while`("it.next()") {
         addStatement("acc +=")
         indent()
@@ -173,11 +183,19 @@ private fun CodeBlockBuilder.generateScalarExtraction(extractor: ObjectConstruct
             MemberName(extractor.fieldType.pkg, extractor.fieldType.name)
         )
 
-        extractor.isEnum -> addStatement(
-            "%M.valueOf(it.getString(1))",
-            MemberName(extractor.fieldType.pkg, extractor.fieldType.name),
-        )
-
+        extractor.isEnum -> {
+            if (extractor.isNullable) {
+                addStatement(
+                    "it.getString(1)?.let { %M.valueOf(it) }",
+                    MemberName(extractor.fieldType.pkg, extractor.fieldType.name),
+                )
+            } else {
+                addStatement(
+                    "%M.valueOf(it.getString(1))",
+                    MemberName(extractor.fieldType.pkg, extractor.fieldType.name),
+                )
+            }
+        }
         else -> addStatement(
             "it.get${extractor.resultSetGetterName}(1)"
         )
@@ -191,12 +209,19 @@ fun Type.toTypeName(): TypeName {
     var cn = klass.toClassName()
     if (nullability == Nullability.NULLABLE) cn = cn.nullable
 
-    return if (typeParameters.isNotEmpty())
-        cn.parameterizedBy(ClassName(typeParameters.single().klass.name.pkg, typeParameters.single().klass.name.name))
-    else cn
+    return if (typeParameters.isNotEmpty()) {
+        val paramType = typeParameters.single()
+        val paramClassName = paramType.klass.toClassName()
+        val paramWithNullability = if (paramType.nullability == Nullability.NULLABLE) {
+            paramClassName.nullable
+        } else {
+            paramClassName
+        }
+        cn.parameterizedBy(paramWithNullability)
+    } else cn
 }
 
-private fun TypeSpecBuilder.generateSaveFunction( klass: Klass) {
+private fun TypeSpecBuilder.generateSaveFunction(klass: Klass) {
     addFunction("save") {
         addModifiers(KModifier.OVERRIDE)
         addParameter(ParameterSpec("item", klass.name.let { ClassName(it.pkg, it.name) }))
@@ -207,7 +232,7 @@ private fun TypeSpecBuilder.generateSaveFunction( klass: Klass) {
 private fun TypeSpecBuilder.generateFindAllFunction(findAllMethod: QueryMethod) {
     addFunction("findAll") {
         addModifiers(KModifier.OVERRIDE)
-        returns(listParametrizedBy(findAllMethod.returnKlass.name))
+        returns(listParametrizedBy(findAllMethod.trueReturnType.klass.name))
 
         val entityType = findAllMethod.returnType.typeParameters.single()
 
@@ -259,12 +284,21 @@ private fun CodeBlockBuilder.generateConstructorCall(c: ObjectConstructor, isTop
                     MemberName(c.fieldType.pkg, c.fieldType.name)
                 )
             } else if (c.isEnum) {
-                addStatement(
-                    "%L = %M.valueOf(it.getString(%S)),",
-                    c.fieldName,
-                    MemberName(c.fieldType.pkg, c.fieldType.name),
-                    c.columnName,
-                )
+                if (c.isNullable) {
+                    addStatement(
+                        "%L = it.getString(%S)?.let { %M.valueOf(it) },",
+                        c.fieldName,
+                        c.columnName,
+                        MemberName(c.fieldType.pkg, c.fieldType.name),
+                    )
+                } else {
+                    addStatement(
+                        "%L = %M.valueOf(it.getString(%S)),",
+                        c.fieldName,
+                        MemberName(c.fieldType.pkg, c.fieldType.name),
+                        c.columnName,
+                    )
+                }
             } else if (c.isPrimitive && c.isNullable) {
                 addStatement(
                     "%L = it.get${c.resultSetGetterName}(%S).takeIf { _ -> !it.wasNull() },",
@@ -307,9 +341,10 @@ private fun TypeSpecBuilder.generateSaveAllFunction(saveAllMethod: QueryMethod, 
                             )
                         } else if (param.isEnum) {
                             addStatement(
-                                "it.setString(%L, item.%L.name)",
+                                "it.setString(%L, item.%L%L.name)",
                                 param.positionInQuery,
                                 param.path,
+                                if (param.kotlinType.nullability == Nullability.NULLABLE) "?" else ""
                             )
                         } else if (param.kotlinType.klass.isJavaPrimitive() && param.kotlinType.nullability == Nullability.NULLABLE) {
                             `if`("item.%L == null", param.path) {
@@ -404,6 +439,10 @@ fun TypeSpec.Builder.primaryConstructor(vararg properties: PropertySpec): TypeSp
         .addProperties(propertySpecs)
 }
 
-fun listParametrizedBy(qualifiedName: QualifiedName) =
-    ClassName("kotlin.collections", "List")
-        .parameterizedBy(qualifiedName.let { ClassName(it.pkg, it.name) })
+fun listParametrizedBy(qualifiedName: QualifiedName, nullable: Boolean = false): ParameterizedTypeName {
+    return ClassName("kotlin.collections", "List")
+        .parameterizedBy(qualifiedName.let {
+            val className = ClassName(it.pkg, it.name)
+            if (nullable) className.nullable else className
+        })
+}

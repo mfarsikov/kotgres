@@ -1,6 +1,7 @@
 package kotgres.kapt.model.repository
 
 import kotgres.aux.PostgresType
+import kotgres.kapt.mapper.Pagination
 import kotgres.kapt.model.db.TableMapping
 import kotgres.kapt.model.klass.Klass
 import kotgres.kapt.model.klass.QualifiedName
@@ -19,17 +20,23 @@ data class Repo(
 data class QueryMethod(
     val name: String,
     val query: String,
+    val queryMethodParameters: List<QueryMethodParameter>,
     val queryParameters: List<QueryParameter>,
     val returnType: Type, //TODO remove?
     val trueReturnType: Type,
     val returnsCollection: Boolean,
     val objectConstructor: ObjectConstructor?,
     val returnsScalar: Boolean = false,
+    val pagination: Pagination?,
+)
+
+data class QueryMethodParameter(
+    val name: String,
+    val type: Type,
 )
 
 data class QueryParameter(
     val positionInQuery: Int,
-    val positionInFunction: Int,
     val kotlinType: Type,
     val setterName: String,
     val path: String,

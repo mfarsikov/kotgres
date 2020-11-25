@@ -9,6 +9,8 @@ import kotgres.annotations.Query
 import kotgres.annotations.Where
 import kotgres.aux.PostgresType
 import kotgres.aux.Repository
+import kotgres.aux.page.Page
+import kotgres.aux.page.Pageable
 import java.sql.Date
 import java.sql.Timestamp
 import java.time.LocalDate
@@ -107,4 +109,12 @@ interface MyClassRepository : Repository<MyClass> {
 
     @Query("select enum from my_class")
     fun findAllEnums(): List<Mode>
+
+    fun findByNamePaged(name: String, pageable: Pageable): Page<MyClass>
+
+    @Where("name = :name")
+    fun findByNamePagedWhere(name: String, pageable: Pageable): Page<MyClass>
+
+    @Query("select id, date, list from my_class where name = :name")
+    fun findByNamePagedCustom(name: String, pageable: Pageable): Page<ProjectionOfMyClass>
 }

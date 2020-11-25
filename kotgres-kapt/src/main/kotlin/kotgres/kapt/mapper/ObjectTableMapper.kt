@@ -22,6 +22,7 @@ import kotgres.kapt.model.klass.Type
 import kotgres.kapt.model.klass.primitives
 import kotgres.kapt.model.repository.ObjectConstructor
 import kotgres.kapt.model.repository.QueryMethod
+import kotgres.kapt.model.repository.QueryMethodParameter
 import kotgres.kapt.model.repository.QueryParameter
 import kotgres.kapt.model.repository.Repo
 import kotgres.kapt.parser.KotlinType
@@ -106,7 +107,7 @@ private fun objectConstructor(
 
 fun getterSetterName(column: ColumnMapping): String {
     return if (column.type.klass.isEnum) "String" else KotlinType.of(column.type.klass.name)?.jdbcSetterName
-        ?: error("cannot map to KotlinType: ${column.type.klass.name}")
+        ?: error("cannot define JDBC getter/setter name for class: ${column.type.klass.name}")
 }
 
 fun Klass.toRepo(dbQualifiedName: QualifiedName): Repo {
@@ -114,6 +115,7 @@ fun Klass.toRepo(dbQualifiedName: QualifiedName): Repo {
     val mappedKlass = mapped.toTableMapping()
 
     val queryMethods = toQueryMethods(functions, mappedKlass)
+
     return Repo(
         superKlass = this,
         queryMethods = queryMethods,
@@ -142,6 +144,12 @@ private fun toQueryMethods(functions: List<KlassFunction>, mappedKlass: TableMap
 
 private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
 
+    val paginationParameter = parameters.firstOrNull() { it.type.klass.name == pageableQualifiedName }
+    val paged = paginationParameter != null
+    //TODO check return type Page + parameter Pageable
+
+    val parameters = parameters.filter { it.type.klass.name != pageableQualifiedName }
+
     val query = annotationConfigs.filterIsInstance<Query>().singleOrNull()?.value!!
 
     val parametersByName = parameters.associateBy { it.name }
@@ -156,7 +164,8 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
         ?.let { error("unused parameters: $it, function '$name'") }
 
     val returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List")
-    val trueReturnType = if (returnsCollection) {
+
+    val trueReturnType = if (returnsCollection || paged) {
         returnType.typeParameters.single()
     } else {
         returnType
@@ -184,7 +193,18 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
         else -> trueReturnType.klass.toTableMapping().objectConstructor
     }
 
-    val functionParatmerNameToPosition = parameters.mapIndexed { x, it -> it.name to x }.toMap()
+    val limitClause = when {
+        returnType.klass.name == KotlinType.UNIT.qn -> null
+        returnsCollection -> annotationConfigs.filterIsInstance<Limit>().singleOrNull()?.value?.let { "LIMIT $it" }
+        paged -> "LIMIT ? OFFSET ?"
+        annotationConfigs.filterIsInstance<First>().isNotEmpty() -> "LIMIT 1"
+        else -> "LIMIT 2"
+    }
+
+    val paginationParam = if (paged)
+        Pagination(parameterName = paginationParameter!!.name,)
+    else
+        null
 
     val queryParameters = queryParametersOrdered.mapIndexed { i, it ->
         val convertToArray = it.type.klass.name == KotlinType.LIST.qn
@@ -196,7 +216,6 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
             path = it.name,
             kotlinType = it.type,
             positionInQuery = i + 1,
-            positionInFunction = functionParatmerNameToPosition[it.name]!!,
             setterName = KotlinType.of(it.type.klass.name)?.jdbcSetterName
                 ?: error("cannot map to KotlinType: ${it.type.klass.name}"),
             isJson = false,
@@ -206,15 +225,49 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
         )
     }
 
+    val paginationQueryParameters = if (paged) {
+        listOf(
+            QueryParameter(
+                path = paginationParameter!!.name + ".pageSize",
+                kotlinType = Type(Klass(KotlinType.INT.qn)),
+                positionInQuery = queryParameters.size + 1,
+                setterName = KotlinType.INT.jdbcSetterName!!,
+                isJson = false,
+                isEnum = false,
+                convertToArray = false,
+                postgresType = PostgresType.INTEGER
+            ),
+            QueryParameter(
+                path = paginationParameter.name + ".offset",
+                kotlinType = Type(Klass(KotlinType.INT.qn)),
+                positionInQuery = queryParameters.size + 2,
+                setterName = KotlinType.INT.jdbcSetterName,
+                isJson = false,
+                isEnum = false,
+                convertToArray = false,
+                postgresType = PostgresType.INTEGER
+            )
+        )
+    } else {
+        emptyList()
+    }
+
+    var q = query.replace(parameterPlaceholderRegex, "?")
+    if(limitClause != null){
+        q = q + "\n" + limitClause
+    }
+
     return QueryMethod(
         name = name,
-        query = query.replace(parameterPlaceholderRegex, "?"),
+        query = q,
         returnType = returnType,
         trueReturnType = trueReturnType,
         returnsCollection = returnsCollection,
-        queryParameters = queryParameters,
+        queryParameters = queryParameters + paginationQueryParameters,
         objectConstructor = constructor,
         returnsScalar = isScalar,
+        pagination = paginationParam,
+        queryMethodParameters = this.parameters.map { QueryMethodParameter(it.name, it.type) }
     )
 }
 
@@ -222,8 +275,15 @@ private fun KlassFunction.toQueryMethodWhere(
     mappedKlass: TableMapping,
 ): QueryMethod {
 
+    val paginationParameter = parameters.firstOrNull() { it.type.klass.name == pageableQualifiedName }
+    val paged = paginationParameter != null
+    //TODO check return type Page + parameter Pageable
+
+    val parameters = parameters.filter { it.type.klass.name != pageableQualifiedName }
+
     val returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List")
-    val trueReturnType = if (returnsCollection) {
+
+    val trueReturnType = if (returnsCollection || paged) {
         returnType.typeParameters.single()
     } else {
         returnType
@@ -250,6 +310,7 @@ private fun KlassFunction.toQueryMethodWhere(
     val limitClause = when {
         isDelete -> null
         returnsCollection -> annotationConfigs.filterIsInstance<Limit>().singleOrNull()?.value?.let { "LIMIT $it" }
+        paged -> "LIMIT ? OFFSET ?"
         annotationConfigs.filterIsInstance<First>().isNotEmpty() -> "LIMIT 1"
         else -> "LIMIT 2"
     }
@@ -263,7 +324,12 @@ private fun KlassFunction.toQueryMethodWhere(
     val fromClause = "FROM ${mappedKlass.fullTableName()}"
     val whereClause = "WHERE ${where.value.replace(parameterPlaceholderRegex, "?")}"
 
-    val functionParatmerNameToPosition = parameters.mapIndexed { x, it -> it.name to x }.toMap()
+    val paginationParam = if (paged)
+        Pagination(parameterName = paginationParameter!!.name,)
+    else
+        null
+
+    val queryMethodParameters = this.parameters.map { QueryMethodParameter(it.name, it.type) }
 
     val queryParameters = paramsOrdered.mapIndexed { i, parameter ->
         val convertToArray = parameter.type.klass.name == KotlinType.LIST.qn
@@ -279,7 +345,6 @@ private fun KlassFunction.toQueryMethodWhere(
             path = parameter.name,
             kotlinType = parameter.type,
             positionInQuery = i + 1,
-            positionInFunction = functionParatmerNameToPosition[parameter.name]!!,
             setterName = KotlinType.of(parameter.type.klass.name)?.jdbcSetterName
                 ?: error("cannot map to KotlinType: ${parameter.type.klass.name}"),
             isJson = false,
@@ -289,22 +354,59 @@ private fun KlassFunction.toQueryMethodWhere(
         )
     }
 
+    val paginationQueryParameters = if (paged) {
+        listOf(
+            QueryParameter(
+                path = paginationParameter!!.name + ".pageSize",
+                kotlinType = Type(Klass(KotlinType.INT.qn)),
+                positionInQuery = queryParameters.size + 1,
+                setterName = KotlinType.INT.jdbcSetterName!!,
+                isJson = false,
+                isEnum = false,
+                convertToArray = false,
+                postgresType = PostgresType.INTEGER
+            ),
+            QueryParameter(
+                path = paginationParameter.name + ".offset",
+                kotlinType = Type(Klass(KotlinType.INT.qn)),
+                positionInQuery = queryParameters.size + 2,
+                setterName = KotlinType.INT.jdbcSetterName,
+                isJson = false,
+                isEnum = false,
+                convertToArray = false,
+                postgresType = PostgresType.INTEGER
+            )
+        )
+    } else {
+        emptyList()
+    }
+
+
     return QueryMethod(
         name = name,
         query = listOfNotNull(selectOrDeleteClause, fromClause, whereClause, limitClause).joinToString("\n"),
         returnType = returnType,
         trueReturnType = trueReturnType,
         returnsCollection = returnsCollection,
-        queryParameters = queryParameters,
-        objectConstructor = returnKlassTableMapping.objectConstructor
+        queryParameters = queryParameters + paginationQueryParameters,
+        objectConstructor = returnKlassTableMapping.objectConstructor,
+        pagination = paginationParam,
+        queryMethodParameters = queryMethodParameters
     )
 }
 
+val pageableQualifiedName = QualifiedName("kotgres.aux.page", "Pageable")
 private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMethod {
+
+    val paginationParameter = parameters.firstOrNull() { it.type.klass.name == pageableQualifiedName }
+    val paged = paginationParameter != null
+    //TODO check return type Page + parameter Pageable
+
+    val parameters = parameters.filter { it.type.klass.name != pageableQualifiedName }
 
     val returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List")
 
-    val trueReturnType = if (returnsCollection) {
+    val trueReturnType = if (returnsCollection || paged) {
         returnType.typeParameters.single()
     } else {
         returnType
@@ -351,6 +453,7 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
     val limitClause = when {
         isDelete -> null
         returnsCollection -> annotationConfigs.filterIsInstance<Limit>().singleOrNull()?.value?.let { "LIMIT $it" }
+        paged -> "LIMIT ? OFFSET ?"
         annotationConfigs.filterIsInstance<First>().isNotEmpty() -> "LIMIT 1"
         else -> "LIMIT 2"
     }
@@ -380,28 +483,69 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
     }
     """.trimIndent()
 
+    val paginationParameters = if (paged)
+        Pagination(parameterName = paginationParameter!!.name)
+    else
+        null
+
+    val queryMethodParameters = this.parameters.map { QueryMethodParameter(it.name, it.type) }
+
+    val queryParameters = whereColumnsByParameters.values.mapIndexed { i, c ->
+        QueryParameter(
+            path = parameters[i].name,
+            kotlinType = parameters[i].type,
+            positionInQuery = i + 1,
+            setterName = getterSetterName(c),
+            isJson = c.column.type == PostgresType.JSONB,
+            isEnum = c.type.klass.isEnum,
+            convertToArray = conditions[i].op == Op.IN,
+            postgresType = c.column.type,
+        )
+    }
+
+    val paginationQueryParameters = if (paged) {
+        listOf(
+            QueryParameter(
+                path = paginationParameter!!.name + ".pageSize",
+                kotlinType = Type(Klass(KotlinType.INT.qn)),
+                positionInQuery = queryParameters.size + 1,
+                setterName = KotlinType.INT.jdbcSetterName!!,
+                isJson = false,
+                isEnum = false,
+                convertToArray = false,
+                postgresType = PostgresType.INTEGER
+            ),
+            QueryParameter(
+                path = paginationParameter.name + ".offset",
+                kotlinType = Type(Klass(KotlinType.INT.qn)),
+                positionInQuery = queryParameters.size + 2,
+                setterName = KotlinType.INT.jdbcSetterName,
+                isJson = false,
+                isEnum = false,
+                convertToArray = false,
+                postgresType = PostgresType.INTEGER
+            )
+        )
+    } else {
+        emptyList()
+    }
+
     return QueryMethod(
         name = name,
         query = listOfNotNull(selectOrDelete, from, whereClause, limitClause).joinToString("\n"),
-        queryParameters = whereColumnsByParameters.values.mapIndexed { i, c ->
-            QueryParameter(
-                path = parameters[i].name,
-                kotlinType = parameters[i].type,
-                positionInQuery = i + 1,
-                positionInFunction = i,
-                setterName = getterSetterName(c),
-                isJson = c.column.type == PostgresType.JSONB,
-                isEnum = c.type.klass.isEnum,
-                convertToArray = conditions[i].op == Op.IN,
-                postgresType = c.column.type,
-            )
-        },
+        queryMethodParameters = queryMethodParameters,
+        queryParameters = queryParameters + paginationQueryParameters,
         returnType = returnType,
         trueReturnType = trueReturnType,
         returnsCollection = returnsCollection,
+        pagination = paginationParameters,
         objectConstructor = returnKlassTableMapping.objectConstructor
     )
 }
+
+data class Pagination(
+    val parameterName: String,
+)
 
 data class Condition(
     val columnName: String,
@@ -430,7 +574,6 @@ private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
     val parameters = mappedKlass.columns.mapIndexed { i, it ->
         QueryParameter(
             positionInQuery = i + 1,
-            positionInFunction = i,
             kotlinType = it.type,
             setterName = getterSetterName(it),
             path = it.path.joinToString("."),
@@ -443,11 +586,13 @@ private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
     return QueryMethod(
         name = "saveAll",
         query = query,
+        queryMethodParameters = emptyList(),
         queryParameters = parameters,
         returnType = Type(Klass(KotlinType.UNIT.qn)),
         returnsCollection = false,
         objectConstructor = null,
         trueReturnType = Type(Klass(KotlinType.UNIT.qn)),
+        pagination = null,
     )
 }
 
@@ -462,6 +607,8 @@ private fun deleteAllQuery(mappedKlass: TableMapping): QueryMethod {
         trueReturnType = Type(Klass(KotlinType.UNIT.qn)),
         returnsCollection = false,
         objectConstructor = null,
+        pagination = null,
+        queryMethodParameters = emptyList(),
     )
 }
 
@@ -482,6 +629,8 @@ private fun findAllQuery(mappedKlass: TableMapping): QueryMethod {
         returnsCollection = true,
         objectConstructor = mappedKlass.objectConstructor,
         trueReturnType = Type(mappedKlass.klass),
+        pagination = null,
+        queryMethodParameters = emptyList(),
     )
 }
 

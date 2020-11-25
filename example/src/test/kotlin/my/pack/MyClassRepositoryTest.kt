@@ -1,5 +1,7 @@
 package my.pack
 
+import kotgres.aux.page.Page
+import kotgres.aux.page.Pageable
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -485,5 +487,95 @@ class MyClassRepositoryTest {
 
         val enums = db.transaction { myClassRepository.findAllEnums() }
         assert(enums.toSet() == setOf(Mode.ON, Mode.OFF))
+    }
+
+    @Test
+    fun `pagination for simple query method`() {
+        val items = listOf(
+            item,
+            item.copy(id = "14"),
+            item.copy(id = "15"),
+            item.copy(id = "16"),
+            item.copy(id = "17"),
+            item.copy(id = "18"),
+        )
+
+        db.transaction { myClassRepository.saveAll(items) }
+
+        fun query(pageable: Pageable): Page<MyClass> {
+            return db.transaction { myClassRepository.findByNamePaged(name = "iphone13", pageable = pageable) }
+        }
+
+        all(
+            { assert(query(Pageable(0, 3)).content == items.take(3)) },
+            { assert(query(Pageable(1, 2)).content == items.drop(2).take(2)) },
+            { assert(query(Pageable(0, 10)).content == items) },
+            { assert(query(Pageable(1, 10)).content == emptyList<MyClass>()) },
+        )
+    }
+
+    @Test
+    fun `pagination for method with @Where`() {
+        val items = listOf(
+            item,
+            item.copy(id = "14"),
+            item.copy(id = "15"),
+            item.copy(id = "16"),
+            item.copy(id = "17"),
+            item.copy(id = "18"),
+        )
+
+        db.transaction { myClassRepository.saveAll(items) }
+
+        fun query(pageable: Pageable): Page<MyClass> {
+            return db.transaction { myClassRepository.findByNamePagedWhere(name = "iphone13", pageable = pageable) }
+        }
+
+        all(
+            { assert(query(Pageable(0, 3)).content == items.take(3)) },
+            { assert(query(Pageable(1, 2)).content == items.drop(2).take(2)) },
+            { assert(query(Pageable(0, 10)).content == items) },
+            { assert(query(Pageable(1, 10)).content == emptyList<MyClass>()) },
+        )
+    }
+
+    @Test
+    fun `pagination for method with custom @Query`() {
+        val items = listOf(
+            item,
+            item.copy(id = "14"),
+            item.copy(id = "15"),
+            item.copy(id = "16"),
+            item.copy(id = "17"),
+            item.copy(id = "18"),
+        )
+
+        val projection = ProjectionOfMyClass(
+            id = "13",
+            date = Date.valueOf(LocalDate.parse("2010-01-01")),
+            list = listOf("a", "b", "c"),
+        )
+
+        val projections = listOf(
+            projection,
+            projection.copy(id = "14"),
+            projection.copy(id = "15"),
+            projection.copy(id = "16"),
+            projection.copy(id = "17"),
+            projection.copy(id = "18"),
+        )
+
+        db.transaction { myClassRepository.saveAll(items) }
+
+        fun query(pageable: Pageable): Page<ProjectionOfMyClass> {
+            return db.transaction { myClassRepository.findByNamePagedCustom(name = "iphone13", pageable = pageable) }
+        }
+
+        all(
+            { assert(query(Pageable(0, 3)).content == projections.take(3)) },
+            { assert(query(Pageable(1, 2)).content == projections.drop(2).take(2)) },
+            { assert(query(Pageable(0, 10)).content == projections) },
+            { assert(query(Pageable(1, 10)).content == emptyList<ProjectionOfMyClass>()) },
+        )
     }
 }

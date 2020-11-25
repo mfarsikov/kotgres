@@ -65,17 +65,17 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
     addFunction(queryMethod.name) {
         addModifiers(KModifier.OVERRIDE)
         returns(queryMethod.returnType.toTypeName())
-        addParameters(queryMethod.queryParameters.sortedBy { it.positionInFunction }.map { param ->
+        addParameters(queryMethod.queryMethodParameters.map { param ->
             ParameterSpec(
-                name = param.path,
-                type = param.kotlinType.toTypeName()
+                name = param.name,
+                type = param.type.toTypeName()
             )
         })
 
         addCode {
             addStatement("val query = %S", queryMethod.query)
             controlFlow("return connection.prepareStatement(query).use") {
-                queryMethod.queryParameters.sortedBy { it.positionInQuery }.forEach { param ->
+                queryMethod.queryParameters.forEach { param ->
                     if (param.isEnum) {
                         addStatement(
                             "it.setString(%L, %L%L.name)",
@@ -112,7 +112,7 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
                 }
                 if (queryMethod.returnType.klass.name != KotlinType.UNIT.qn) {
                     controlFlow("it.executeQuery().use") {
-                        if (queryMethod.returnsCollection)
+                        if (queryMethod.returnsCollection || queryMethod.pagination != null)
                             generateCollectionExtractor(queryMethod)
                         else
                             generateSingleElementExtractor(queryMethod)
@@ -141,7 +141,14 @@ private fun CodeBlockBuilder.generateCollectionExtractor(queryMethod: QueryMetho
         }
         unindent()
     }
-    addStatement("acc")
+    if (queryMethod.pagination != null) {
+        addStatement(
+            "Page(%L, acc)",
+            queryMethod.pagination.parameterName
+        )//TODO use correct parameter name
+    } else {
+        addStatement("acc")
+    }
 }
 
 private fun CodeBlockBuilder.generateSingleElementExtractor(

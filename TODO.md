@@ -19,5 +19,12 @@
 * kdoc generated code?
 * documentation
 
-
 throw on insert duplicate
+### Pagination
+* `totalNumber` in paged query?
+  * alternative could be another query
+*`hasPrevious` `hasNext`?
+
+### Queries
+* do not use specific logic for findAll method
+* Rework @Limit, and allow to use it as a query parameter

@@ -61,6 +61,8 @@ interface MyClassRepository : Repository<MyClass> {
     fun deleteAll()
     fun saveAll(items: List<MyClass>)
     fun save(item: MyClass)
+    fun count(): Int
+    fun exists(id: String): Boolean
 
     @OnConflictFail
     fun saveOrFail(item: MyClass)

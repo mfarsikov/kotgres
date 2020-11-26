@@ -593,4 +593,26 @@ class MyClassRepositoryTest {
             { assert(query(Pageable(1, 10)).content == emptyList<ProjectionOfMyClass>()) },
         )
     }
+
+    @Test
+    fun count() {
+        db.transaction { myClassRepository.saveAll(listOf(item, item.copy(id = "14"))) }
+
+        val count = db.transaction { myClassRepository.count() }
+
+        assert(count == 2)
+    }
+
+
+    @Test
+    fun exists() {
+        db.transaction { myClassRepository.save(item) }
+
+        fun exists(id: String) = db.transaction { myClassRepository.exists(id) }
+
+        all(
+            { assert(exists("13")) },
+            { assert(!exists("14")) },
+        )
+    }
 }

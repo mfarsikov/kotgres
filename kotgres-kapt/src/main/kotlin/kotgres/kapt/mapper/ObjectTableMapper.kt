@@ -254,7 +254,10 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
         returnType
     }
 
-    val returnKlassTableMapping = trueReturnType.klass.toTableMapping()
+    val isCount = returnType.klass.name == KotlinType.INT.qn
+    val isExists = returnType.klass.name == KotlinType.BOOLEAN.qn
+
+    val returnKlassTableMapping = if (!isCount && !isExists) trueReturnType.klass.toTableMapping() else null
 
     val (whereClause, queryParameters) = annotationConfigs
         .singleOrNull { it is Where }
@@ -264,24 +267,38 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
     val isDelete = name.startsWith("delete")
 
     val limitClause = when {
-        isDelete -> null
+        isDelete || isCount || isExists -> null
         returnsCollection -> annotationConfigs.filterIsInstance<Limit>().singleOrNull()?.value?.let { "LIMIT $it" }
         paginationParameter != null -> "LIMIT ? OFFSET ?"
         annotationConfigs.filterIsInstance<First>().isNotEmpty() -> "LIMIT 1"
         else -> "LIMIT 2"
     }
 
-    val selectOrDeleteClause = if (isDelete) {
-        """
-        DELETE 
-        """.trimIndent()
-    } else {
-        """
-        SELECT ${returnKlassTableMapping.columns.joinToString { "\"${it.column.name}\"" }}
-        """.trimIndent()
+    val selectOrDeleteClause = when {
+        isDelete -> """
+                DELETE 
+                FROM ${repoMappedKlass.fullTableName()}
+                %where
+            """.trimIndent()
+        isCount -> """
+                SELECT count(*) 
+                FROM ${repoMappedKlass.fullTableName()}
+                %where
+            """.trimIndent()
+        isExists -> """
+                SELECT EXISTS (
+                    SELECT * 
+                    FROM ${repoMappedKlass.fullTableName()} 
+                    %where
+                )
+            """.trimIndent()
+        else -> """
+                SELECT ${returnKlassTableMapping!!.columns.joinToString { "\"${it.column.name}\"" }}
+                FROM ${repoMappedKlass.fullTableName()}
+                %where
+            """.trimIndent()
     }
 
-    val fromClause = "FROM ${repoMappedKlass.fullTableName()}"
 
     val queryMethodParameters = this.parameters.map { QueryMethodParameter(it.name, it.type) }
 
@@ -289,17 +306,35 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
         ?.let { paginationQueryParameters(it, queryParameters.size) }
         ?: emptyList()
 
+    val constructor = when {
+        isCount || isExists -> ObjectConstructor.Extractor(
+            resultSetGetterName = KotlinType.of(trueReturnType.klass.name)!!.jdbcSetterName!!,
+            columnName = "N/A",
+            fieldName = null,
+            fieldType = trueReturnType.klass.name,
+            isJson = false,
+            isEnum = false,
+            isPrimitive = true,
+            isNullable = trueReturnType.nullability == Nullability.NULLABLE,
+        )
+        isDelete -> null
+        else -> returnKlassTableMapping!!.objectConstructor
+    }
 
     return QueryMethod(
         name = name,
-        query = listOfNotNull(selectOrDeleteClause, fromClause, whereClause, limitClause).joinToString("\n"),
+        query = listOfNotNull(
+            selectOrDeleteClause.replace("%where", whereClause ?: ""),
+            limitClause
+        ).joinToString("\n"),
         queryMethodParameters = queryMethodParameters,
         queryParameters = queryParameters + paginationQueryParameters,
         returnType = returnType,
         trueReturnType = trueReturnType,
         returnsCollection = returnsCollection,
         pagination = paginationParameter,
-        objectConstructor = returnKlassTableMapping.objectConstructor
+        objectConstructor = constructor,
+        returnsScalar = isCount || isExists,
     )
 }
 
@@ -385,14 +420,20 @@ private fun generateWhere(
     val paramsOrdered = parameterPlaceholderRegex
         .findAll(where.value)
         .map { it.value.substringAfter(":") }
-        .map { parametersByName[it] ?: error( ""//TODO
-            //"Parameter '$it' not found, function '$name'"
-        ) }
+        .map {
+            parametersByName[it] ?: error(
+                ""//TODO
+                //"Parameter '$it' not found, function '$name'"
+            )
+        }
         .toList()
 
-    (parameters - paramsOrdered).takeIf { it.isNotEmpty() }?.let { error(""//TODO
-    //    "unused parameters: $it, function '$name'"
-    ) }
+    (parameters - paramsOrdered).takeIf { it.isNotEmpty() }?.let {
+        error(
+            ""//TODO
+            //    "unused parameters: $it, function '$name'"
+        )
+    }
 
     val whereClause = "WHERE ${where.value.replace(parameterPlaceholderRegex, "?")}"
 

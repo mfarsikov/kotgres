@@ -35,7 +35,7 @@ import kotgres.kapt.parser.toQualifiedName
 val parameterPlaceholderRegex = Regex(":\\w*")
 
 fun validationErrors(klass: Klass): List<String> {
-    val entityKlass = klass.superclassParameter?.klass!!
+    val entityKlass = klass.superclassParameter?.klass ?: return emptyList()
 
     return entityKlass.fields.flatMap { checkFieldTypes(entityKlass, it.type.klass, listOf(it.name)) }
 }
@@ -114,8 +114,7 @@ fun getterSetterName(column: ColumnMapping): String {
 }
 
 fun Klass.toRepo(dbQualifiedName: QualifiedName): Repo {
-    val mapped = superclassParameter?.klass!!
-    val mappedKlass = mapped.toTableMapping()
+    val mappedKlass = superclassParameter?.klass?.toTableMapping()
 
     val queryMethods = toQueryMethods(functions, mappedKlass)
 
@@ -132,14 +131,17 @@ fun Klass.toRepo(dbQualifiedName: QualifiedName): Repo {
     )
 }
 
-private fun toQueryMethods(functions: List<KlassFunction>, mappedKlass: TableMapping): List<QueryMethod> {
+private fun toQueryMethods(functions: List<KlassFunction>, mappedKlass: TableMapping?): List<QueryMethod> {
 
     val (save, withoutSave) = functions.partition { it.name.startsWith("save") }
     val (withQuery, other) = withoutSave.partition { it.annotationConfigs.any { it is Query } }
 
-    return other.map { it.toQueryMethod(mappedKlass) } +
+    if((other.isNotEmpty() || save.isNotEmpty()) && mappedKlass == null)
+        throw KotgresException("Only method with custom @Queries are allowed")
+
+    return other.map { it.toQueryMethod(mappedKlass!!) } +
             withQuery.map { it.toCustomQueryMethod() } +
-            save.map { it.toSaveMethod(mappedKlass) }
+            save.map { it.toSaveMethod(mappedKlass!!) }
 }
 
 private fun KlassFunction.toCustomQueryMethod(): QueryMethod {

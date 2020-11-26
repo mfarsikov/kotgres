@@ -337,6 +337,8 @@ private fun CodeBlockBuilder.generateParametersSetBlock(
 }
 
 private fun TypeSpecBuilder.generateCheckFunction(repo: Repo) {
+    if(repo.mappedKlass == null) return
+
     addFunction("check") {
         addModifiers(KModifier.OVERRIDE)
         returns(List::class.parameterizedBy(String::class))

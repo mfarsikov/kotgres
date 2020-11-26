@@ -10,7 +10,7 @@ import kotgres.kapt.model.klass.Type
 data class Repo(
     val superKlass: Klass,
     val queryMethods: List<QueryMethod>,
-    val mappedKlass: TableMapping, //TODO probably only constructor is used. check and remove
+    val mappedKlass: TableMapping?,
     val belongsToDb: QualifiedName,
 )
 

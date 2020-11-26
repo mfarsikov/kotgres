@@ -109,7 +109,7 @@ class Processor : AbstractProcessor() {
 }
 
 private fun elementsFromRepo(klass: Klass): List<Element> {
-    return elementsFromFromKlass(klass.superclassParameter!!.klass) + klass.element!!
+    return (klass.superclassParameter?.let{elementsFromFromKlass(it.klass)}?: emptyList()) + klass.element!!
 }
 
 private fun elementsFromFromKlass(klass: Klass): List<Element> {

@@ -82,7 +82,9 @@ fun generateDb(dbDescription: DbDescription): FileSpec {
                         addStatement("listOf(")
                         indent()
                         dbDescription.repositories.forEach { repo ->
-                            addStatement("%TImpl(it),", repo.superKlass.toClassName())
+                            if (repo.mappedKlass != null) {
+                                addStatement("%TImpl(it),", repo.superKlass.toClassName())
+                            }
                         }
                         unindent()
                         addStatement(").flatMap { it.check() }")

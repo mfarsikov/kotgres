@@ -6,6 +6,7 @@ plugins {
     id("maven-publish")
     id("com.jfrog.bintray")
     id("org.jetbrains.dokka") version "0.10.1"
+    id("com.bnorm.power.kotlin-power-assert") version "0.5.3"
 
     idea
 }
@@ -19,6 +20,8 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect:1.4.10")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 
+    testImplementation("org.junit.jupiter:junit-jupiter:5.7.0")
+    testImplementation("org.jetbrains.kotlin:kotlin-test:1.4.10")
 }
 
 java {
@@ -112,5 +115,16 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     kotlinOptions {
         freeCompilerArgs = listOf("-Xjsr305=strict")
         jvmTarget = "1.8"
+        if (name == "compileTestKotlin") {
+            useIR = true
+        }
     }
+}
+
+configure<com.bnorm.power.PowerAssertGradleExtension> {
+    functions = listOf("kotlin.assert")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }

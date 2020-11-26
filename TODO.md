@@ -36,6 +36,12 @@
   @Where("name like :pattern")
   fun select(pattern: String): Int
   ```
+* Add `exists()` medhod
+  * if repo query returns Boolean is it `exists`?
+  ```kotlin
+  @Where("name like :pattern")
+  fun select(pattern: String): Boolean
+  ```
 * Repository could consist of custom queries, and it is not required to extend the `Repository<T>`
   * error on query methods without `@Query` annotation
 * Optimistic lock

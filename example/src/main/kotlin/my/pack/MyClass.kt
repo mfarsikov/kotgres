@@ -57,7 +57,7 @@ data class ProjectionOfMyClass(val id: String, val date: Date, val list: List<St
 @PostgresRepository
 interface MyClassRepository : Repository<MyClass> {
 
-    fun findAll():List<MyClass>
+    fun findAll(): List<MyClass>
     fun deleteAll()
     fun saveAll(items: List<MyClass>)
     fun save(item: MyClass)

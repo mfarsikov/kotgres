@@ -135,11 +135,9 @@ fun Klass.toRepo(dbQualifiedName: QualifiedName): Repo {
 private fun toQueryMethods(functions: List<KlassFunction>, mappedKlass: TableMapping): List<QueryMethod> {
 
     val (save, withoutSave) = functions.partition { it.name.startsWith("save") }
-    val (withWhere, withoutWhere) = withoutSave.partition { it.annotationConfigs.any { it is Where } }
-    val (withQuery, other) = withoutWhere.partition { it.annotationConfigs.any { it is Query } }
+    val (withQuery, other) = withoutSave.partition { it.annotationConfigs.any { it is Query } }
 
     return other.map { it.toQueryMethod(mappedKlass) } +
-            withWhere.map { it.toQueryMethodWhere(mappedKlass) } +
             withQuery.map { it.toCustomQueryMethod() } +
             save.map { it.toSaveMethod(mappedKlass) }
 }
@@ -242,99 +240,6 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
     )
 }
 
-private fun KlassFunction.toQueryMethodWhere(
-    mappedKlass: TableMapping,
-): QueryMethod {
-
-    val paginationParameter = paginationParameter()
-
-    val parameters = parameters.filter { it.type.klass.name != pageableQualifiedName }
-
-    val returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List")
-
-    val trueReturnType = if (returnsCollection || paginationParameter != null) {
-        returnType.typeParameters.single()
-    } else {
-        returnType
-    }
-
-    val returnKlassTableMapping = trueReturnType.klass.toTableMapping()
-
-    //TODO check projection has same fields as mapped class
-
-    val parametersByName = parameters.associateBy { it.name }
-
-    val where = annotationConfigs.filterIsInstance<Where>().single()
-
-    val paramsOrdered = parameterPlaceholderRegex
-        .findAll(where.value)
-        .map { it.value.substringAfter(":") }
-        .map { parametersByName[it] ?: error("Parameter '$it' not found, function '$name'") }
-        .toList()
-
-    (parameters - paramsOrdered).takeIf { it.isNotEmpty() }?.let { error("unused parameters: $it, function '$name'") }
-
-    val isDelete = name.startsWith("delete")
-
-    val limitClause = when {
-        isDelete -> null
-        returnsCollection -> annotationConfigs.filterIsInstance<Limit>().singleOrNull()?.value?.let { "LIMIT $it" }
-        paginationParameter != null -> "LIMIT ? OFFSET ?"
-        annotationConfigs.filterIsInstance<First>().isNotEmpty() -> "LIMIT 1"
-        else -> "LIMIT 2"
-    }
-
-    val selectOrDeleteClause = if (isDelete) {
-        "DELETE"
-    } else {
-        "SELECT ${returnKlassTableMapping.columns.joinToString { "\"${it.column.name}\"" }} "
-    }
-
-    val fromClause = "FROM ${mappedKlass.fullTableName()}"
-    val whereClause = "WHERE ${where.value.replace(parameterPlaceholderRegex, "?")}"
-
-    val queryMethodParameters = this.parameters.map { QueryMethodParameter(it.name, it.type) }
-
-    val queryParameters = paramsOrdered.mapIndexed { i, parameter ->
-        val convertToArray = parameter.type.klass.name == KotlinType.LIST.qn
-
-        val postgresType =
-            if (convertToArray) {
-                kotlinTypeToPostgresTypeMapping[KotlinType.of(parameter.type.typeParameters.single().klass.name)]
-            } else {
-                kotlinTypeToPostgresTypeMapping[KotlinType.of(parameter.type.klass.name)]
-            } ?: PostgresType.NONE
-
-        QueryParameter(
-            path = parameter.name,
-            kotlinType = parameter.type,
-            positionInQuery = i + 1,
-            setterName = KotlinType.of(parameter.type.klass.name)?.jdbcSetterName
-                ?: error("cannot map to KotlinType: ${parameter.type.klass.name}"),
-            isJson = false,
-            isEnum = parameter.type.klass.isEnum,
-            convertToArray = convertToArray,
-            postgresType = postgresType,
-        )
-    }
-
-    val paginationQueryParameters = paginationParameter
-        ?.let { paginationQueryParameters(it, queryParameters.size) }
-        ?: emptyList()
-
-    return QueryMethod(
-        name = name,
-        query = listOfNotNull(selectOrDeleteClause, fromClause, whereClause, limitClause).joinToString("\n"),
-        returnType = returnType,
-        trueReturnType = trueReturnType,
-        returnsCollection = returnsCollection,
-        queryParameters = queryParameters + paginationQueryParameters,
-        objectConstructor = returnKlassTableMapping.objectConstructor,
-        pagination = paginationParameter,
-        queryMethodParameters = queryMethodParameters
-    )
-}
-
 private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMethod {
 
     val paginationParameter = paginationParameter()
@@ -351,13 +256,66 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
 
     val returnKlassTableMapping = trueReturnType.klass.toTableMapping()
 
+    val (whereClause, queryParameters) = annotationConfigs
+        .singleOrNull { it is Where }
+        ?.let { generateWhere(parameters, it as Where) }
+        ?: generateWhere(parameters, repoMappedKlass)
+
+    val isDelete = name.startsWith("delete")
+
+    val limitClause = when {
+        isDelete -> null
+        returnsCollection -> annotationConfigs.filterIsInstance<Limit>().singleOrNull()?.value?.let { "LIMIT $it" }
+        paginationParameter != null -> "LIMIT ? OFFSET ?"
+        annotationConfigs.filterIsInstance<First>().isNotEmpty() -> "LIMIT 1"
+        else -> "LIMIT 2"
+    }
+
+    val selectOrDeleteClause = if (isDelete) {
+        """
+        DELETE 
+        """.trimIndent()
+    } else {
+        """
+        SELECT ${returnKlassTableMapping.columns.joinToString { "\"${it.column.name}\"" }}
+        """.trimIndent()
+    }
+
+    val fromClause = "FROM ${repoMappedKlass.fullTableName()}"
+
+    val queryMethodParameters = this.parameters.map { QueryMethodParameter(it.name, it.type) }
+
+    val paginationQueryParameters = paginationParameter
+        ?.let { paginationQueryParameters(it, queryParameters.size) }
+        ?: emptyList()
+
+
+    return QueryMethod(
+        name = name,
+        query = listOfNotNull(selectOrDeleteClause, fromClause, whereClause, limitClause).joinToString("\n"),
+        queryMethodParameters = queryMethodParameters,
+        queryParameters = queryParameters + paginationQueryParameters,
+        returnType = returnType,
+        trueReturnType = trueReturnType,
+        returnsCollection = returnsCollection,
+        pagination = paginationParameter,
+        objectConstructor = returnKlassTableMapping.objectConstructor
+    )
+}
+
+private fun generateWhere(
+    parameters: List<FunctionParameter>,
+    repoMappedKlass: TableMapping,
+): Pair<String?, List<QueryParameter>> {
+
     val columnsByFieldName = repoMappedKlass.columns.associateBy { it.path.last() }
 
     val whereColumnsByParameters = parameters.associateWith {
         columnsByFieldName[it.name]
             ?: error(
-                "cannot find field '${it.name}', among: ${columnsByFieldName.keys}, in class: ${trueReturnType.klass.name}, " +
-                        "function: ${name}"
+                ""//TODO
+//                "cannot find field '${it.name}', among: ${columnsByFieldName.keys}, in class: ${repoMappedKlass.klass.name}, " +
+//                        "function: ${name}"
             )
     }
 
@@ -383,28 +341,6 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
 
     val conditions = parameters.map { toCondition(it) }
 
-    val isDelete = name.startsWith("delete")
-
-    val limitClause = when {
-        isDelete -> null
-        returnsCollection -> annotationConfigs.filterIsInstance<Limit>().singleOrNull()?.value?.let { "LIMIT $it" }
-        paginationParameter != null -> "LIMIT ? OFFSET ?"
-        annotationConfigs.filterIsInstance<First>().isNotEmpty() -> "LIMIT 1"
-        else -> "LIMIT 2"
-    }
-
-    val selectOrDelete = if (isDelete) {
-        """
-        DELETE 
-        """.trimIndent()
-    } else {
-        """
-        SELECT ${returnKlassTableMapping.columns.joinToString { "\"${it.column.name}\"" }}
-        """.trimIndent()
-    }
-
-    val from = "FROM ${repoMappedKlass.fullTableName()}"
-
     val whereClause = conditions
         .takeIf { it.isNotEmpty() }
         ?.let {
@@ -422,8 +358,6 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
             """.trimIndent()
         }
 
-    val queryMethodParameters = this.parameters.map { QueryMethodParameter(it.name, it.type) }
-
     val queryParameters = whereColumnsByParameters.values.mapIndexed { i, c ->
         QueryParameter(
             path = parameters[i].name,
@@ -436,22 +370,55 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
             postgresType = c.column.type,
         )
     }
+    return whereClause to queryParameters
+}
 
-    val paginationQueryParameters = paginationParameter
-        ?.let { paginationQueryParameters(it, queryParameters.size) }
-        ?: emptyList()
 
-    return QueryMethod(
-        name = name,
-        query = listOfNotNull(selectOrDelete, from, whereClause, limitClause).joinToString("\n"),
-        queryMethodParameters = queryMethodParameters,
-        queryParameters = queryParameters + paginationQueryParameters,
-        returnType = returnType,
-        trueReturnType = trueReturnType,
-        returnsCollection = returnsCollection,
-        pagination = paginationParameter,
-        objectConstructor = returnKlassTableMapping.objectConstructor
-    )
+private fun generateWhere(
+    parameters: List<FunctionParameter>,
+    where: Where
+): Pair<String?, List<QueryParameter>> {
+    //TODO check projection has same fields as mapped class
+
+    val parametersByName = parameters.associateBy { it.name }
+
+    val paramsOrdered = parameterPlaceholderRegex
+        .findAll(where.value)
+        .map { it.value.substringAfter(":") }
+        .map { parametersByName[it] ?: error( ""//TODO
+            //"Parameter '$it' not found, function '$name'"
+        ) }
+        .toList()
+
+    (parameters - paramsOrdered).takeIf { it.isNotEmpty() }?.let { error(""//TODO
+    //    "unused parameters: $it, function '$name'"
+    ) }
+
+    val whereClause = "WHERE ${where.value.replace(parameterPlaceholderRegex, "?")}"
+
+    val queryParameters = paramsOrdered.mapIndexed { i, parameter ->
+        val convertToArray = parameter.type.klass.name == KotlinType.LIST.qn
+
+        val postgresType =
+            if (convertToArray) {
+                kotlinTypeToPostgresTypeMapping[KotlinType.of(parameter.type.typeParameters.single().klass.name)]
+            } else {
+                kotlinTypeToPostgresTypeMapping[KotlinType.of(parameter.type.klass.name)]
+            } ?: PostgresType.NONE
+
+        QueryParameter(
+            path = parameter.name,
+            kotlinType = parameter.type,
+            positionInQuery = i + 1,
+            setterName = KotlinType.of(parameter.type.klass.name)?.jdbcSetterName
+                ?: error("cannot map to KotlinType: ${parameter.type.klass.name}"),
+            isJson = false,
+            isEnum = parameter.type.klass.isEnum,
+            convertToArray = convertToArray,
+            postgresType = postgresType,
+        )
+    }
+    return whereClause to queryParameters
 }
 
 data class Condition(

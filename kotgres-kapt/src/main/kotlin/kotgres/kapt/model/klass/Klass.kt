@@ -58,7 +58,7 @@ data class KlassFunction(
 
 data class FunctionSignature(
     val functionName: String,
-    val parameters: List<Klass>
+    val parameters: List<QualifiedName>
 )
 
 data class FunctionParameter(

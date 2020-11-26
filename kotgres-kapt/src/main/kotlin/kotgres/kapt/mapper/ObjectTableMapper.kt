@@ -4,6 +4,7 @@ import kotgres.annotations.Column
 import kotgres.annotations.First
 import kotgres.annotations.Id
 import kotgres.annotations.Limit
+import kotgres.annotations.OnConflictFail
 import kotgres.annotations.PostgresRepository
 import kotgres.annotations.Query
 import kotgres.annotations.Table
@@ -481,7 +482,14 @@ private fun KlassFunction.toSaveMethod(mappedKlass: TableMapping): QueryMethod {
     }
     """.trimIndent()
 
-    val query = if (mappedKlass.columns.any { it.column.isId }) insert + onConflict else insert
+    val query = if (
+        mappedKlass.columns.any { it.column.isId } &&
+        annotationConfigs.none { it is OnConflictFail }
+    )
+        insert + onConflict
+    else
+        insert
+
 
     val queryType = if (KotlinType.of(param.type.klass.name) == KotlinType.LIST) {
         QueryMethodType.BATCH

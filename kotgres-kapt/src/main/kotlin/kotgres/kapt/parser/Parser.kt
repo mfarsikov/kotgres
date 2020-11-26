@@ -5,6 +5,7 @@ import kotgres.annotations.Column
 import kotgres.annotations.First
 import kotgres.annotations.Id
 import kotgres.annotations.Limit
+import kotgres.annotations.OnConflictFail
 import kotgres.annotations.PostgresRepository
 import kotgres.annotations.Query
 import kotgres.annotations.Table
@@ -89,6 +90,7 @@ class Parser(
                     it.getAnnotation(Query::class.java),
                     it.getAnnotation(Limit::class.java),
                     it.getAnnotation(First::class.java),
+                    it.getAnnotation(OnConflictFail::class.java),
                 )
             }
 
@@ -168,16 +170,13 @@ class Parser(
 
     private fun Symbol.MethodSymbol.toFunctionSignature() = FunctionSignature(
         functionName = name.toString(),
-        parameters = params.map {
-            val qualifiedName = (it.type.tsym as Symbol.ClassSymbol).className().toQualifiedName()
-            Klass(KotlinType.of(qualifiedName)?.qn ?: qualifiedName)
-        }
+        parameters = params.map { (it.type.tsym as Symbol.ClassSymbol).className().toQualifiedName() }
     )
 
     private fun KmFunction.toFunctionSignature() = FunctionSignature(
         functionName = name,
         parameters = valueParameters.map {
-            it.type!!.toType().klass
+            it.type!!.toType().klass.name
         }
     )
 }

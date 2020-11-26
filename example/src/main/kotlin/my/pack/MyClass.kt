@@ -4,6 +4,7 @@ import kotgres.annotations.Column
 import kotgres.annotations.First
 import kotgres.annotations.Id
 import kotgres.annotations.Limit
+import kotgres.annotations.OnConflictFail
 import kotgres.annotations.PostgresRepository
 import kotgres.annotations.Query
 import kotgres.annotations.Where
@@ -60,6 +61,9 @@ interface MyClassRepository : Repository<MyClass> {
     fun deleteAll()
     fun saveAll(items: List<MyClass>)
     fun save(item: MyClass)
+
+    @OnConflictFail
+    fun saveOrFail(item: MyClass)
 
     fun findById(id: String): MyClass?
 

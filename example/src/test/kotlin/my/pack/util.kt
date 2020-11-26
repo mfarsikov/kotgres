@@ -4,6 +4,7 @@ import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.flywaydb.core.Flyway
 import javax.sql.DataSource
+import kotlin.reflect.full.isSubclassOf
 import kotlin.test.fail
 
 object TestUtil {
@@ -17,14 +18,15 @@ object TestUtil {
     }
 }
 
-inline fun <reified E : Throwable> expect(block: () -> Any?) {
+inline fun <reified E : Throwable> expect(block: () -> Any?):E {
     try {
         val r = block()
         fail("Expected ${E::class.qualifiedName}, but nothing was thrown, and returned: $r")
     } catch (fail: AssertionError) {
         throw fail
     } catch (actual: Throwable) {
-        assert(actual::class == E::class)
+        assert(actual::class.isSubclassOf(E::class))
+        return actual as E
     }
 }
 

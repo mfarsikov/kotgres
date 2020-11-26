@@ -20,7 +20,6 @@
 * kdoc generated code?
 * documentation
 
-throw on insert duplicate
 ### Pagination
 * `totalNumber` in paged query?
   * alternative could be another query
@@ -28,7 +27,6 @@ throw on insert duplicate
 * `hasNext` (limit + 1?)
 
 ### Queries
-* Do not use specific logic for `findAll` method (`ObjectTableMapper.kt`)
 * Rework `@Limit`, and allow to use it as a query parameter
 * Add `@Order` annotation
 * Support dynamic ordering (Sort as a query parameter) (combined with limit?)

@@ -5,6 +5,7 @@ import kotgres.aux.page.Pageable
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
+import org.postgresql.util.PSQLException
 import java.sql.Date
 import java.sql.Timestamp
 import java.time.Instant
@@ -25,7 +26,7 @@ class MyClassRepositoryTest {
 
         val item = MyClass(
             id = "13",
-            name = "iphone13",
+            name = "iitem13",
             myNestedClass = MyNestedClass(
                 proc = "bionic13",
                 myNestedNestedClass = MyNestedNestedClass(
@@ -67,8 +68,8 @@ class MyClassRepositoryTest {
             rollback()
         }
 
-        val phones = db.transaction(readOnly = true) { myClassRepository.findAll() }
-        assert(phones.isEmpty()) { "rollback does not work" }
+        val items = db.transaction(readOnly = true) { myClassRepository.findAll() }
+        assert(items.isEmpty()) { "rollback does not work" }
     }
 
     @Test
@@ -81,8 +82,8 @@ class MyClassRepositoryTest {
         } catch (ex: IllegalStateException) {
         }
 
-        val phones = db.transaction(readOnly = true) { myClassRepository.findAll() }
-        assert(phones.isEmpty())
+        val items = db.transaction(readOnly = true) { myClassRepository.findAll() }
+        assert(items.isEmpty())
     }
 
     @Test
@@ -92,35 +93,49 @@ class MyClassRepositoryTest {
             myClassRepository.save(item)
         }
 
-        val phones2 = db.transaction(readOnly = true) { myClassRepository.findAll() }
+        val items2 = db.transaction(readOnly = true) { myClassRepository.findAll() }
 
-        assert(phones2 == listOf(item))
+        assert(items2 == listOf(item))
     }
 
     @Test
     fun saveAll() {
 
-        val phones = listOf(item, item.copy(id = "14"))
+        val items = listOf(item, item.copy(id = "14"))
 
         db.transaction {
-            myClassRepository.saveAll(phones)
+            myClassRepository.saveAll(items)
 
         }
 
-        val phones2 = db.transaction(readOnly = true) { myClassRepository.findAll() }
+        val items2 = db.transaction(readOnly = true) { myClassRepository.findAll() }
 
-        assert(phones2 == phones)
+        assert(items2 == items)
+    }
+
+    @Test
+    fun `fail on conflict`() {
+
+        db.transaction {
+            myClassRepository.saveOrFail(item)
+        }
+
+        val msg = expect<PSQLException> {
+            db.transaction { myClassRepository.saveOrFail(item) }
+        }.message
+
+        assert("duplicate key value violates unique constraint" in msg!!)
     }
 
     @Test
     fun update() {
 
         db.transaction { myClassRepository.save(item) }
-        db.transaction { myClassRepository.save(item.copy(name = "iphone2")) }
+        db.transaction { myClassRepository.save(item.copy(name = "iitem2")) }
 
-        val phones = db.transaction(readOnly = true) { myClassRepository.findAll() }
+        val items = db.transaction(readOnly = true) { myClassRepository.findAll() }
 
-        assert(phones == listOf(item.copy(name = "iphone2")))
+        assert(items == listOf(item.copy(name = "iitem2")))
     }
 
     @Test
@@ -357,16 +372,16 @@ class MyClassRepositoryTest {
     @Test
     fun `select IN`() {
 
-        val phones = listOf(item, item.copy(id = "14"))
+        val items = listOf(item, item.copy(id = "14"))
         db.transaction {
-            myClassRepository.saveAll(phones)
+            myClassRepository.saveAll(items)
         }
 
         fun `id in`(ids: List<String>) =
             db.transaction { myClassRepository.findByIdIn(ids) }
 
         all(
-            { assert(`id in`(listOf("13", "14")) == phones) },
+            { assert(`id in`(listOf("13", "14")) == items) },
             { assert(`id in`(listOf("15")) == emptyList<MyClass>()) },
             { assert(`id in`(emptyList()) == emptyList<MyClass>()) },
         )
@@ -374,9 +389,9 @@ class MyClassRepositoryTest {
 
     @Test
     fun `select IN with @Where`() {
-        val phones = listOf(item, item.copy(id = "14"))
+        val items = listOf(item, item.copy(id = "14"))
         db.transaction {
-            myClassRepository.saveAll(phones)
+            myClassRepository.saveAll(items)
         }
 
         fun `id in`(ids: List<String>) =
@@ -401,9 +416,9 @@ class MyClassRepositoryTest {
 
     @Test
     fun `select IN with custom query`() {
-        val phones = listOf(item)
+        val items = listOf(item)
         db.transaction {
-            myClassRepository.saveAll(phones)
+            myClassRepository.saveAll(items)
         }
 
         fun `dates in`(dates: List<String>) =
@@ -422,30 +437,30 @@ class MyClassRepositoryTest {
 
     @Test
     fun `save-read null value`() {
-        val noNamePhone = item.copy(name = null)
+        val noNameItem = item.copy(name = null)
 
-        db.transaction { myClassRepository.save(noNamePhone) }
-        val fromDb = db.transaction { myClassRepository.findById(noNamePhone.id) }
+        db.transaction { myClassRepository.save(noNameItem) }
+        val fromDb = db.transaction { myClassRepository.findById(noNameItem.id) }
 
-        assert(fromDb == noNamePhone)
+        assert(fromDb == noNameItem)
     }
 
     @Test
     fun `where name is null`() {
-        val noNamePhone = item.copy(name = null)
+        val noNameItem = item.copy(name = null)
 
-        db.transaction { myClassRepository.save(noNamePhone) }
+        db.transaction { myClassRepository.save(noNameItem) }
         val fromDb = db.transaction { myClassRepository.findFirstByName(null) }
 
-        assert(fromDb == noNamePhone)
+        assert(fromDb == noNameItem)
     }
 
     @Test
     fun `find first does not fail on multiple results`() {
-        val noNamePhone1 = item.copy(name = null)
-        val noNamePhone2 = item.copy(id = "14", name = null)
+        val noNameItem1 = item.copy(name = null)
+        val noNameItem2 = item.copy(id = "14", name = null)
 
-        db.transaction { myClassRepository.saveAll(listOf(noNamePhone1, noNamePhone2)) }
+        db.transaction { myClassRepository.saveAll(listOf(noNameItem1, noNameItem2)) }
         val fromDb = db.transaction { myClassRepository.findFirstByName(null) }
 
         assert(fromDb != null)
@@ -463,14 +478,14 @@ class MyClassRepositoryTest {
 
     @Test
     fun `limit by 3 elemets`() {
-        val fourPhones = listOf(
+        val fourItems = listOf(
             item,
             item.copy(id = "14"),
             item.copy(id = "15"),
             item.copy(id = "16"),
         )
 
-        db.transaction { myClassRepository.saveAll(fourPhones) }
+        db.transaction { myClassRepository.saveAll(fourItems) }
 
         val limited = db.transaction { myClassRepository.findByDate(item.date) }
         assert(limited.size == 3)
@@ -503,7 +518,7 @@ class MyClassRepositoryTest {
         db.transaction { myClassRepository.saveAll(items) }
 
         fun query(pageable: Pageable): Page<MyClass> {
-            return db.transaction { myClassRepository.findByNamePaged(name = "iphone13", pageable = pageable) }
+            return db.transaction { myClassRepository.findByNamePaged(name = "iitem13", pageable = pageable) }
         }
 
         all(
@@ -528,7 +543,7 @@ class MyClassRepositoryTest {
         db.transaction { myClassRepository.saveAll(items) }
 
         fun query(pageable: Pageable): Page<MyClass> {
-            return db.transaction { myClassRepository.findByNamePagedWhere(name = "iphone13", pageable = pageable) }
+            return db.transaction { myClassRepository.findByNamePagedWhere(name = "iitem13", pageable = pageable) }
         }
 
         all(
@@ -568,7 +583,7 @@ class MyClassRepositoryTest {
         db.transaction { myClassRepository.saveAll(items) }
 
         fun query(pageable: Pageable): Page<ProjectionOfMyClass> {
-            return db.transaction { myClassRepository.findByNamePagedCustom(name = "iphone13", pageable = pageable) }
+            return db.transaction { myClassRepository.findByNamePagedCustom(name = "iitem13", pageable = pageable) }
         }
 
         all(

@@ -74,6 +74,9 @@ interface MyClassRepository : Repository<MyClass> {
 
     @Limit(3)
     fun findByDate(date: Date): List<MyClass>
+
+    fun findByDate(date: Date, @Limit limit: Int): List<MyClass>
+
     fun findSingleById(id: String): MyClass
     fun findBySpecProc(proc: String): List<MyClass>
     fun findSingleBySpecProc(proc: String): MyClass

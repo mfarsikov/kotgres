@@ -492,6 +492,27 @@ class MyClassRepositoryTest {
     }
 
     @Test
+    fun `limit by arbitrary amount`() {
+        val fourItems = listOf(
+            item,
+            item.copy(id = "14"),
+            item.copy(id = "15"),
+            item.copy(id = "16"),
+        )
+
+        db.transaction { myClassRepository.saveAll(fourItems) }
+
+        fun limit(limit:Int) = db.transaction { myClassRepository.findByDate(item.date, limit = limit) }
+
+        all(
+            { assert(limit(0).size == 0)},
+            { assert(limit(3).size == 3)},
+            { assert(limit(4).size == 4)},
+            { assert(limit(5).size == 4)},
+        )
+    }
+
+    @Test
     fun `select list of enums`() {
         val items = listOf(
             item,
@@ -522,10 +543,10 @@ class MyClassRepositoryTest {
         }
 
         all(
-            { assert(query(Pageable(0, 3)).content == items.take(3)) },
-            { assert(query(Pageable(1, 2)).content == items.drop(2).take(2)) },
-            { assert(query(Pageable(0, 10)).content == items) },
-            { assert(query(Pageable(1, 10)).content == emptyList<MyClass>()) },
+            { assert(query(Pageable(0, 3)).content.size == 3) },
+            { assert(query(Pageable(1, 2)).content.size == 2) },
+            { assert(query(Pageable(0, 10)).content.size == 6) },
+            { assert(query(Pageable(1, 10)).content.size == 0) },
         )
     }
 

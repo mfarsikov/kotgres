@@ -80,23 +80,48 @@ class Parser(
             superclass.arguments.firstOrNull().let { param -> param?.type?.toType() }
         }
 
-        val functionSignatureToAnnotations: Map<FunctionSignature, List<Annotation>> = element.members()
+        data class ParamAnnotations(
+            val name: String,
+            val annotations: List<Annotation>,
+        )
+
+        data class FunAnnotations(
+            val signature: FunctionSignature,
+            val annotations: List<Annotation>,
+            val paramAnnotations: List<ParamAnnotations>
+        )
+
+        val functionSignatureToAnnotations: Map<FunctionSignature, FunAnnotations> = element.members()
             .elements
             .map { it as Element }
             .filterIsInstance<Symbol.MethodSymbol>()
             .associate {
-                it.toFunctionSignature() to listOfNotNull(
-                    it.getAnnotation(Where::class.java),
-                    it.getAnnotation(Query::class.java),
-                    it.getAnnotation(Limit::class.java),
-                    it.getAnnotation(First::class.java),
-                    it.getAnnotation(OnConflictFail::class.java),
-                )
+                val params = it.params.mapNotNull{
+                    ParamAnnotations(
+                        it.name.toString(),
+                        listOf(
+                            it.getAnnotation(Limit::class.java),
+                        )
+                    ).takeIf { it.annotations.isNotEmpty() }
+                }
+
+                FunAnnotations(
+                    it.toFunctionSignature(),
+                    listOfNotNull(
+                        it.getAnnotation(Where::class.java),
+                        it.getAnnotation(Query::class.java),
+                        it.getAnnotation(Limit::class.java),
+                        it.getAnnotation(First::class.java),
+                        it.getAnnotation(OnConflictFail::class.java),
+                    ),
+                    params
+                ).let { it.signature to it }
             }
 
         val functions = kmClass.functions.asSequence()
             .filterNot { Flag.Function.IS_SYNTHESIZED.invoke(it.flags) }
             .map { func ->
+                val funAnnotations = functionSignatureToAnnotations[func.toFunctionSignature()]
                 KlassFunction(
                     name = func.name,
                     parameters = func.valueParameters.map { param ->
@@ -104,11 +129,11 @@ class Parser(
                             name = param.name,
                             type = param.type!!.toType(),
                             isTarget = false,
-                            annotations = emptyList()
+                            annotations = funAnnotations?.paramAnnotations?.find { it.name == param.name }?.annotations ?: emptyList()
                         )
                     },
                     returnType = func.returnType.toType(),
-                    annotationConfigs = functionSignatureToAnnotations[func.toFunctionSignature()] ?: emptyList(),
+                    annotationConfigs = funAnnotations?.annotations ?: emptyList(),
                     abstract = false,
                     isExtension = false
                 )

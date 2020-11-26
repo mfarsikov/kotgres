@@ -136,7 +136,7 @@ private fun toQueryMethods(functions: List<KlassFunction>, mappedKlass: TableMap
     val (save, withoutSave) = functions.partition { it.name.startsWith("save") }
     val (withQuery, other) = withoutSave.partition { it.annotationConfigs.any { it is Query } }
 
-    if((other.isNotEmpty() || save.isNotEmpty()) && mappedKlass == null)
+    if ((other.isNotEmpty() || save.isNotEmpty()) && mappedKlass == null)
         throw KotgresException("Only method with custom @Queries are allowed")
 
     return other.map { it.toQueryMethod(mappedKlass!!) } +
@@ -246,7 +246,12 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
 
     val paginationParameter = paginationParameter()
 
-    val parameters = parameters.filter { it.type.klass.name != pageableQualifiedName }
+    val limitParameter = parameters.singleOrNull { it.annotations.any { it is Limit } }
+
+    val parameters = parameters.filter {
+        it.type.klass.name != pageableQualifiedName &&
+                it.annotations.none { it is Limit }
+    }
 
     val returnsCollection = returnType.klass.name == QualifiedName("kotlin.collections", "List")
 
@@ -268,9 +273,13 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
 
     val isDelete = name.startsWith("delete")
 
+    val methodAnnotation = annotationConfigs.filterIsInstance<Limit>().singleOrNull()
+
     val limitClause = when {
         isDelete || isCount || isExists -> null
-        returnsCollection -> annotationConfigs.filterIsInstance<Limit>().singleOrNull()?.value?.let { "LIMIT $it" }
+        returnsCollection && limitParameter != null -> "LIMIT ?"
+        returnsCollection && methodAnnotation != null -> "LIMIT ${methodAnnotation.value}"
+        returnsCollection -> null
         paginationParameter != null -> "LIMIT ? OFFSET ?"
         annotationConfigs.filterIsInstance<First>().isNotEmpty() -> "LIMIT 1"
         else -> "LIMIT 2"
@@ -301,12 +310,25 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
             """.trimIndent()
     }
 
-
     val queryMethodParameters = this.parameters.map { QueryMethodParameter(it.name, it.type) }
 
-    val paginationQueryParameters = paginationParameter
-        ?.let { paginationQueryParameters(it, queryParameters.size) }
-        ?: emptyList()
+    val limitQueryParameters =
+        when {
+            paginationParameter != null -> paginationQueryParameters(paginationParameter, queryParameters.size)
+            limitParameter != null -> listOf(
+                QueryParameter(
+                    positionInQuery = queryParameters.size + 1,
+                    kotlinType = Type(Klass(KotlinType.INT.qn)),
+                    setterName = KotlinType.INT.jdbcSetterName!!,
+                    path = limitParameter.name,
+                    isJson = false,
+                    isEnum = false,
+                    convertToArray = false,
+                    PostgresType.INTEGER
+                )
+            )
+            else -> emptyList()
+        }
 
     val constructor = when {
         isCount || isExists -> ObjectConstructor.Extractor(
@@ -330,7 +352,7 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
             limitClause
         ).joinToString("\n"),
         queryMethodParameters = queryMethodParameters,
-        queryParameters = queryParameters + paginationQueryParameters,
+        queryParameters = queryParameters + limitQueryParameters,
         returnType = returnType,
         trueReturnType = trueReturnType,
         returnsCollection = returnsCollection,
@@ -569,7 +591,8 @@ private fun flattenToColumns(klass: Klass, path: List<String> = emptyList()): Li
     }
 }
 
-private fun TableMapping.fullTableName(): String = listOfNotNull(schema, name).joinToString(".") { "\"$it\"" }
+private fun TableMapping.fullTableName(): String =
+    listOfNotNull(schema, name).joinToString(".") { "\"$it\"" }
 
 private fun extractPostgresType(
     columnAnnotation: Column?,

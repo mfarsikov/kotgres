@@ -27,7 +27,6 @@
 * `hasNext` (limit + 1?)
 
 ### Queries
-* Rework `@Limit`, and allow to use it as a query parameter
 * Add `@Order` annotation
 * Support dynamic ordering (Sort as a query parameter) (combined with limit?)
 * Repository could consist of custom queries, and it is not required to extend the `Repository<T>`

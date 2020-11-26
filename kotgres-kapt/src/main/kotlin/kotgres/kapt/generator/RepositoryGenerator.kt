@@ -6,7 +6,6 @@ import com.squareup.kotlinpoet.FunSpec
 import com.squareup.kotlinpoet.KModifier
 import com.squareup.kotlinpoet.MemberName
 import com.squareup.kotlinpoet.ParameterSpec
-import com.squareup.kotlinpoet.ParameterizedTypeName
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.PropertySpec
 import com.squareup.kotlinpoet.TypeName
@@ -25,12 +24,13 @@ import io.github.enjoydambience.kotlinbard.nullable
 import kotgres.aux.Checker
 import kotgres.kapt.model.klass.Klass
 import kotgres.kapt.model.klass.Nullability
-import kotgres.kapt.model.klass.QualifiedName
 import kotgres.kapt.model.klass.Type
 import kotgres.kapt.model.klass.isJavaPrimitive
 import kotgres.kapt.model.klass.jdbcTypeMappingsForPrimitives
 import kotgres.kapt.model.repository.ObjectConstructor
 import kotgres.kapt.model.repository.QueryMethod
+import kotgres.kapt.model.repository.QueryMethodType
+import kotgres.kapt.model.repository.QueryParameter
 import kotgres.kapt.model.repository.Repo
 import kotgres.kapt.parser.KotlinType
 import javax.annotation.Generated
@@ -47,19 +47,19 @@ fun generateRepository(repo: Repo): FileSpec {
                 PropertySpec.builder("connection", ClassName("java.sql", "Connection"), KModifier.PRIVATE).build()
             )
 
-            generateSaveAllFunction(repo.saveAllMethod, repo.mappedKlass.klass)
-            generateFindAllFunction(repo.findAllMethod)
             generateCheckFunction(repo)
-            generateSaveFunction(repo.mappedKlass.klass)
-            generateDeleteAllFunction(repo)
-            repo.queryMethods.forEach { queryMethod ->
-                generateCustomSelectFunction(queryMethod)
-            }
+            repo.queryMethods
+                .forEach { queryMethod ->
+                    when (queryMethod.type) {
+                        QueryMethodType.SINGLE -> generateQueryMethod(queryMethod)
+                        QueryMethodType.BATCH -> generateBatchQueryMethod(queryMethod)
+                    }
+                }
         }
     }
 }
 
-private fun TypeSpecBuilder.generateCustomSelectFunction(
+private fun TypeSpecBuilder.generateQueryMethod(
     queryMethod: QueryMethod,
 ) {
     addFunction(queryMethod.name) {
@@ -75,41 +75,9 @@ private fun TypeSpecBuilder.generateCustomSelectFunction(
         addCode {
             addStatement("val query = %S", queryMethod.query)
             controlFlow("return connection.prepareStatement(query).use") {
-                queryMethod.queryParameters.forEach { param ->
-                    if (param.isEnum) {
-                        addStatement(
-                            "it.setString(%L, %L%L.name)",
-                            param.positionInQuery,
-                            param.path,
-                            if (param.kotlinType.nullability == Nullability.NULLABLE) "?" else ""
-                        )
-                    } else if (param.convertToArray) {
-                        addStatement(
-                            "it.setArray(%L, connection.createArrayOf(%S, %L.toTypedArray()))",
-                            param.positionInQuery,
-                            param.postgresType.value,
-                            param.path,
-                        )
-                    } else if (param.kotlinType.klass.isJavaPrimitive() && param.kotlinType.nullability == Nullability.NULLABLE) {
-                        `if`("%L == null", param.path) {
-                            addStatement(
-                                "it.setNull(%L, %M.%L)",
-                                param.positionInQuery,
-                                MemberName("java.sql", "Types"),
-                                jdbcTypeMappingsForPrimitives[param.postgresType]
-                                    ?: error("no java.sql.Types mapping for ${param.postgresType}")
-                            )
-                        } `else` {
-                            addStatement(
-                                "it.set${param.setterName}(%L, %L)",
-                                param.positionInQuery,
-                                param.path,
-                            )
-                        }
-                    } else {
-                        addStatement("it.set%L(%L, %L)", param.setterName, param.positionInQuery, param.path)
-                    }
-                }
+
+                generateParametersSetBlock(queryMethod.queryParameters, "")
+
                 if (queryMethod.returnType.klass.name != KotlinType.UNIT.qn) {
                     controlFlow("it.executeQuery().use") {
                         if (queryMethod.returnsCollection || queryMethod.pagination != null)
@@ -228,41 +196,6 @@ fun Type.toTypeName(): TypeName {
     } else cn
 }
 
-private fun TypeSpecBuilder.generateSaveFunction(klass: Klass) {
-    addFunction("save") {
-        addModifiers(KModifier.OVERRIDE)
-        addParameter(ParameterSpec("item", klass.name.let { ClassName(it.pkg, it.name) }))
-        addStatement("saveAll(listOf(item))")
-    }
-}
-
-private fun TypeSpecBuilder.generateFindAllFunction(findAllMethod: QueryMethod) {
-    addFunction("findAll") {
-        addModifiers(KModifier.OVERRIDE)
-        returns(listParametrizedBy(findAllMethod.trueReturnType.klass.name))
-
-        val entityType = findAllMethod.returnType.typeParameters.single()
-
-        addCode {
-            addStatement("val query = %S", findAllMethod.query)
-
-            val entityClassName = ClassName(entityType.klass.name.pkg, entityType.klass.name.name)
-            controlFlow("return connection.prepareStatement(query).use") {
-                controlFlow("it.executeQuery().use") {
-                    addStatement("val acc = mutableListOf<%T>()", entityClassName)
-                    `while`("it.next()") {
-                        addStatement("acc += ")
-
-                        generateConstructorCall(findAllMethod.objectConstructor!!)
-
-                    }
-                    addStatement("acc")
-                }
-            }
-        }
-    }
-}
-
 private fun CodeBlockBuilder.generateConstructorCall(c: ObjectConstructor, isTop: Boolean = true) {
     when (c) {
         is ObjectConstructor.Constructor -> {
@@ -323,60 +256,23 @@ private fun CodeBlockBuilder.generateConstructorCall(c: ObjectConstructor, isTop
     }
 }
 
-private fun TypeSpecBuilder.generateSaveAllFunction(saveAllMethod: QueryMethod, klass: Klass) {
-    addFunction("saveAll") {
+private fun TypeSpecBuilder.generateBatchQueryMethod(queryMethod: QueryMethod) {
+    addFunction(queryMethod.name) {
         addModifiers(KModifier.OVERRIDE)
 
+        val queryMethodParameter = queryMethod.queryMethodParameters.single()
         addParameter(
-            ParameterSpec(
-                "items", listParametrizedBy(klass.name)
-            )
+            ParameterSpec(queryMethodParameter.name, queryMethodParameter.type.toTypeName())
         )
+
+
         addCode {
-            addStatement("val query = %S", saveAllMethod.query)
+            addStatement("val query = %S", queryMethod.query)
             controlFlow("connection.prepareStatement(query).use") {
-                `for`("item in items") {
-                    for (param in saveAllMethod.queryParameters) {
-                        if (param.isJson) {
-                            addStatement(
-                                """it.setObject(%L, %M().apply { type = "jsonb"; value = %M.%M(item.%L) })""",
-                                param.positionInQuery,
-                                MemberName("org.postgresql.util", "PGobject"),
-                                MemberName("kotlinx.serialization.json", "Json"),
-                                MemberName("kotlinx.serialization", "encodeToString"),
-                                param.path,
-                            )
-                        } else if (param.isEnum) {
-                            addStatement(
-                                "it.setString(%L, item.%L%L.name)",
-                                param.positionInQuery,
-                                param.path,
-                                if (param.kotlinType.nullability == Nullability.NULLABLE) "?" else ""
-                            )
-                        } else if (param.kotlinType.klass.isJavaPrimitive() && param.kotlinType.nullability == Nullability.NULLABLE) {
-                            `if`("item.%L == null", param.path) {
-                                addStatement(
-                                    "it.setNull(%L, %M.%L)",
-                                    param.positionInQuery,
-                                    MemberName("java.sql", "Types"),
-                                    jdbcTypeMappingsForPrimitives[param.postgresType]
-                                        ?: error("no java.sql.Types mapping for ${param.postgresType}")
-                                )
-                            } `else` {
-                                addStatement(
-                                    "it.set${param.setterName}(%L, item.%L)",
-                                    param.positionInQuery,
-                                    param.path,
-                                )
-                            }
-                        } else {
-                            addStatement(
-                                "it.set${param.setterName}(%L, item.%L)",
-                                param.positionInQuery,
-                                param.path,
-                            )
-                        }
-                    }
+                `for`("item in ${queryMethodParameter.name}") {
+
+                    generateParametersSetBlock(queryMethod.queryParameters, "item.")
+
                     addStatement("it.addBatch()")
                 }
                 addStatement("it.executeBatch()")
@@ -385,15 +281,57 @@ private fun TypeSpecBuilder.generateSaveAllFunction(saveAllMethod: QueryMethod, 
     }
 }
 
+private fun CodeBlockBuilder.generateParametersSetBlock(
+    queryParameters: List<QueryParameter>,
+    itemPrefix: String
+) {
+    for (param in queryParameters) {
+        when {
+            param.convertToArray -> addStatement(
+                "it.setArray(%L, connection.createArrayOf(%S, $itemPrefix%L.toTypedArray()))",
+                param.positionInQuery,
+                param.postgresType.value,
+                param.path,
+            )
 
-private fun TypeSpecBuilder.generateDeleteAllFunction(repo: Repo) {
-    addFunction("deleteAll") {
-        addModifiers(KModifier.OVERRIDE)
-        addCode {
-            addStatement("val query = %S", repo.deleteAllMethod.query)
-            controlFlow("connection.prepareStatement(query).use") {
-                addStatement("it.execute()")
-            }
+            param.isJson -> addStatement(
+                """it.setObject(%L, %M().apply { type = "jsonb"; value = %M.%M($itemPrefix%L) })""",
+                param.positionInQuery,
+                MemberName("org.postgresql.util", "PGobject"),
+                MemberName("kotlinx.serialization.json", "Json"),
+                MemberName("kotlinx.serialization", "encodeToString"),
+                param.path,
+            )
+
+            param.isEnum -> addStatement(
+                "it.setString(%L, $itemPrefix%L%L.name)",
+                param.positionInQuery,
+                param.path,
+                if (param.kotlinType.nullability == Nullability.NULLABLE) "?" else ""
+            )
+
+            param.kotlinType.klass.isJavaPrimitive() && param.kotlinType.nullability == Nullability.NULLABLE ->
+                `if`("$itemPrefix%L == null", param.path) {
+                    addStatement(
+                        "it.setNull(%L, %M.%L)",
+                        param.positionInQuery,
+                        MemberName("java.sql", "Types"),
+                        jdbcTypeMappingsForPrimitives[param.postgresType]
+                            ?: error("no java.sql.Types mapping for ${param.postgresType}")
+                    )
+                } `else` {
+                    addStatement(
+                        "it.set${param.setterName}(%L, $itemPrefix%L)",
+                        param.positionInQuery,
+                        param.path,
+                    )
+                }
+
+            else -> addStatement(
+                "it.set${param.setterName}(%L, $itemPrefix%L)",
+                param.positionInQuery,
+                param.path,
+            )
         }
     }
 }
@@ -444,12 +382,4 @@ fun TypeSpec.Builder.primaryConstructor(vararg properties: PropertySpec): TypeSp
     return this
         .primaryConstructor(constructor)
         .addProperties(propertySpecs)
-}
-
-fun listParametrizedBy(qualifiedName: QualifiedName, nullable: Boolean = false): ParameterizedTypeName {
-    return ClassName("kotlin.collections", "List")
-        .parameterizedBy(qualifiedName.let {
-            val className = ClassName(it.pkg, it.name)
-            if (nullable) className.nullable else className
-        })
 }

@@ -47,6 +47,10 @@ data class NullableProjectionOfMyClass(val id: String?, val date: Date?, val lis
 @PostgresRepository(belongsToDb = "my.pack.NullableDb")
 interface MyNullableClassRepository : Repository<MyNullableClass> {
 
+    fun saveAll(items: List<MyNullableClass>)
+    fun save(item: MyNullableClass)
+    fun deleteAll()
+    fun findAll(): List<MyNullableClass>
     fun findById(id: String): MyNullableClass?
     fun findByName(name: String?): MyNullableClass?
     fun findByDate(date: Date): List<MyNullableClass>

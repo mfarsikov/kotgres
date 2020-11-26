@@ -10,6 +10,7 @@ import kotgres.annotations.Table
 import kotgres.annotations.Where
 import kotgres.aux.ColumnDefinition
 import kotgres.aux.PostgresType
+import kotgres.kapt.KotgresException
 import kotgres.kapt.model.db.ColumnMapping
 import kotgres.kapt.model.db.TableMapping
 import kotgres.kapt.model.klass.Field
@@ -23,6 +24,7 @@ import kotgres.kapt.model.klass.primitives
 import kotgres.kapt.model.repository.ObjectConstructor
 import kotgres.kapt.model.repository.QueryMethod
 import kotgres.kapt.model.repository.QueryMethodParameter
+import kotgres.kapt.model.repository.QueryMethodType
 import kotgres.kapt.model.repository.QueryParameter
 import kotgres.kapt.model.repository.Repo
 import kotgres.kapt.parser.KotlinType
@@ -120,9 +122,6 @@ fun Klass.toRepo(dbQualifiedName: QualifiedName): Repo {
         superKlass = this,
         queryMethods = queryMethods,
         mappedKlass = mappedKlass,
-        saveAllMethod = saveAllQuery(mappedKlass),
-        findAllMethod = findAllQuery(mappedKlass),
-        deleteAllMethod = deleteAllQuery(mappedKlass),
         belongsToDb = annotations.filterIsInstance<PostgresRepository>()
             .single()
             .belongsToDb
@@ -134,12 +133,14 @@ fun Klass.toRepo(dbQualifiedName: QualifiedName): Repo {
 
 private fun toQueryMethods(functions: List<KlassFunction>, mappedKlass: TableMapping): List<QueryMethod> {
 
-    val (withWhere, withoutWhere) = functions.partition { it.annotationConfigs.any { it is Where } }
+    val (save, withoutSave) = functions.partition { it.name.startsWith("save") }
+    val (withWhere, withoutWhere) = withoutSave.partition { it.annotationConfigs.any { it is Where } }
     val (withQuery, other) = withoutWhere.partition { it.annotationConfigs.any { it is Query } }
 
     return other.map { it.toQueryMethod(mappedKlass) } +
             withWhere.map { it.toQueryMethodWhere(mappedKlass) } +
-            withQuery.map { it.toCustomQueryMethod() }
+            withQuery.map { it.toCustomQueryMethod() } +
+            save.map { it.toSaveMethod(mappedKlass) }
 }
 
 private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
@@ -218,7 +219,7 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
     }
 
     val paginationQueryParameters = paginationParameter
-        ?.let{ paginationQueryParameters(it, queryParameters.size)}
+        ?.let { paginationQueryParameters(it, queryParameters.size) }
         ?: emptyList()
 
     var q = query.replace(parameterPlaceholderRegex, "?")
@@ -381,8 +382,6 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
 
     val conditions = parameters.map { toCondition(it) }
 
-    if (whereColumnsByParameters.isEmpty()) error("Empty query parameters, function name: $name")
-
     val isDelete = name.startsWith("delete")
 
     val limitClause = when {
@@ -405,18 +404,22 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
 
     val from = "FROM ${repoMappedKlass.fullTableName()}"
 
-    val whereClause = """
-        WHERE ${
-        conditions.joinToString(" AND ") {
-            when {
-                it.op == Op.EQ && !it.nullable -> "\"${it.columnName}\" = ?"
-                it.op == Op.EQ && it.nullable -> "\"${it.columnName}\" IS NOT DISTINCT FROM ?"
-                it.op == Op.IN -> "\"${it.columnName}\" = ANY (?)"
-                else -> error("")
+    val whereClause = conditions
+        .takeIf { it.isNotEmpty() }
+        ?.let {
+            """
+                WHERE ${
+                it.joinToString(" AND ") {
+                    when {
+                        it.op == Op.EQ && !it.nullable -> "\"${it.columnName}\" = ?"
+                        it.op == Op.EQ && it.nullable -> "\"${it.columnName}\" IS NOT DISTINCT FROM ?"
+                        it.op == Op.IN -> "\"${it.columnName}\" = ANY (?)"
+                        else -> error("")
+                    }
+                }
             }
+            """.trimIndent()
         }
-    }
-    """.trimIndent()
 
     val queryMethodParameters = this.parameters.map { QueryMethodParameter(it.name, it.type) }
 
@@ -458,12 +461,18 @@ data class Condition(
 
 enum class Op { EQ, IN }
 
-private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
+private fun KlassFunction.toSaveMethod(mappedKlass: TableMapping): QueryMethod {
+
+
+    val param = parameters.singleOrNull()
+        ?: throw KotgresException("save method must have a single parameter (List or an Entity). $this")
+
     val insert = """
         INSERT INTO ${mappedKlass.fullTableName()}
         (${mappedKlass.columns.joinToString { "\"${it.column.name}\"" }})
         VALUES (${mappedKlass.columns.joinToString { "?" }})
     """.trimIndent()
+
     val onConflict = """
         
         ON CONFLICT (${mappedKlass.columns.filter { it.column.isId }.joinToString { it.column.name }}) DO 
@@ -474,66 +483,41 @@ private fun saveAllQuery(mappedKlass: TableMapping): QueryMethod {
 
     val query = if (mappedKlass.columns.any { it.column.isId }) insert + onConflict else insert
 
+    val queryType = if (KotlinType.of(param.type.klass.name) == KotlinType.LIST) {
+        QueryMethodType.BATCH
+    } else {
+        QueryMethodType.SINGLE
+    }
+
+    val pathStart = when (queryType) {
+        QueryMethodType.BATCH -> emptyList()
+        QueryMethodType.SINGLE -> listOf(param.name)
+    }
+
     val parameters = mappedKlass.columns.mapIndexed { i, it ->
         QueryParameter(
             positionInQuery = i + 1,
             kotlinType = it.type,
             setterName = getterSetterName(it),
-            path = it.path.joinToString("."),
+            path = (pathStart + it.path).joinToString("."),
             isJson = it.column.type == PostgresType.JSONB,
             isEnum = it.type.klass.isEnum,
             convertToArray = false,
             postgresType = it.column.type,
         )
     }
+
     return QueryMethod(
-        name = "saveAll",
+        name = name,
         query = query,
-        queryMethodParameters = emptyList(),
+        queryMethodParameters = this.parameters.map { QueryMethodParameter(it.name, it.type) },
         queryParameters = parameters,
         returnType = Type(Klass(KotlinType.UNIT.qn)),
         returnsCollection = false,
         objectConstructor = null,
         trueReturnType = Type(Klass(KotlinType.UNIT.qn)),
         pagination = null,
-    )
-}
-
-private fun deleteAllQuery(mappedKlass: TableMapping): QueryMethod {
-    val delete = "DELETE FROM ${mappedKlass.fullTableName()}".trimMargin()
-
-    return QueryMethod(
-        name = "saveAll",
-        query = delete,
-        queryParameters = emptyList(),
-        returnType = Type(Klass(KotlinType.UNIT.qn)),
-        trueReturnType = Type(Klass(KotlinType.UNIT.qn)),
-        returnsCollection = false,
-        objectConstructor = null,
-        pagination = null,
-        queryMethodParameters = emptyList(),
-    )
-}
-
-private fun findAllQuery(mappedKlass: TableMapping): QueryMethod {
-    val select = """
-        SELECT ${mappedKlass.columns.joinToString { "\"${it.column.name}\"" }}
-        FROM ${mappedKlass.fullTableName()}
-    """.trimIndent()
-
-    return QueryMethod(
-        name = "findAll",
-        query = select,
-        queryParameters = emptyList(),
-        returnType = Type(
-            klass = Klass(name = QualifiedName("kotlin.collections", "List")),
-            typeParameters = listOf(Type(mappedKlass.klass)),
-        ),
-        returnsCollection = true,
-        objectConstructor = mappedKlass.objectConstructor,
-        trueReturnType = Type(mappedKlass.klass),
-        pagination = null,
-        queryMethodParameters = emptyList(),
+        type = queryType,
     )
 }
 
@@ -541,7 +525,7 @@ private fun flattenToColumns(klass: Klass, path: List<String> = emptyList()): Li
     return klass.fields.flatMap { field ->
         val columnAnnotation = field.annotations.filterIsInstance<Column>().singleOrNull()
 
-        val colType: PostgresType? = extractPostrgresType(columnAnnotation, field)
+        val colType: PostgresType? = extractPostgresType(columnAnnotation, field)
 
         when {
             colType == null && field.type.klass.fields.isEmpty() -> {
@@ -569,7 +553,7 @@ private fun flattenToColumns(klass: Klass, path: List<String> = emptyList()): Li
 
 private fun TableMapping.fullTableName(): String = listOfNotNull(schema, name).joinToString(".") { "\"$it\"" }
 
-private fun extractPostrgresType(
+private fun extractPostgresType(
     columnAnnotation: Column?,
     field: Field
 ): PostgresType? {

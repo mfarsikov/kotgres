@@ -43,7 +43,7 @@ fun main() {
         nullableInt = null
     )
 
-    db.transaction { myClassRepository.save(phone) }
+    db.transaction { myClassRepository.saveAll(listOf(phone)) }
 
 
     val phones = db.transaction { myClassRepository.findAll() }

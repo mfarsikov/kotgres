@@ -10,9 +10,6 @@ import kotgres.kapt.model.klass.Type
 data class Repo(
     val superKlass: Klass,
     val queryMethods: List<QueryMethod>,
-    val saveAllMethod: QueryMethod,
-    val findAllMethod: QueryMethod,
-    val deleteAllMethod: QueryMethod,
     val mappedKlass: TableMapping, //TODO probably only constructor is used. check and remove
     val belongsToDb: QualifiedName,
 )
@@ -28,7 +25,10 @@ data class QueryMethod(
     val objectConstructor: ObjectConstructor?,
     val returnsScalar: Boolean = false,
     val pagination: Pagination?,
+    val type: QueryMethodType = QueryMethodType.SINGLE,
 )
+
+enum class QueryMethodType { SINGLE, BATCH }
 
 data class QueryMethodParameter(
     val name: String,

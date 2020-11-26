@@ -8,4 +8,9 @@ data class Blob(
 )
 
 @PostgresRepository(belongsToDb = "my.pack.BlobDb")
-interface BlobRepository : Repository<Blob>
+interface BlobRepository : Repository<Blob> {
+    fun findAll(): List<Blob>
+    fun deleteAll()
+    fun saveAll(items: List<Blob>)
+    fun save(item: Blob)
+}

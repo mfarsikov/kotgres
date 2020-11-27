@@ -61,6 +61,7 @@ interface MyClassRepository : Repository<MyClass> {
 
     fun findAll(): List<MyClass>
     fun deleteAll()
+    fun delete(item: MyClass)
     fun saveAll(items: List<MyClass>)
     fun save(item: MyClass)
     fun count(): Int

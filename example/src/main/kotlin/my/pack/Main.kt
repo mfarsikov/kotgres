@@ -46,6 +46,6 @@ fun main() {
     db.transaction { myClassRepository.saveAll(listOf(phone)) }
 
 
-    val phones = db.transaction { myClassRepository.findAll() }
+    println("items: ${db.transaction { myClassRepository.findAll() }}")
 
 }

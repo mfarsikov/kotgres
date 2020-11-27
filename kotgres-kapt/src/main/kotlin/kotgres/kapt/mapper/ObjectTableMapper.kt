@@ -153,22 +153,27 @@ private fun KlassFunction.toDeleteMethod(repoMappedKlass: TableMapping): QueryMe
 
     //TODO check no Limit no pageable
 
-    val (whereClause, queryParameters) = annotationConfigs
-        .singleOrNull { it is Where }
-        ?.let { generateWhere(parameters, it as Where) }
-        ?: generateWhere(parameters, repoMappedKlass)
+    val (whereClause, queryParameters) = when {
+        annotationConfigs.any { it is Where } -> generateWhere(
+            parameters,
+            annotationConfigs.single { it is Where } as Where)
+        parameters.size == 1 && parameters.first().type.klass == repoMappedKlass.klass -> generateWhere2(
+            parameters,
+            repoMappedKlass
+        )
+        else -> generateWhere(parameters, repoMappedKlass)
+    }
 
     val deleteClause = """
                 DELETE 
                 FROM ${repoMappedKlass.fullTableName()}
-                %where
             """.trimIndent()
 
     val queryMethodParameters = parameters.map { QueryMethodParameter(it.name, it.type) }
 
     return QueryMethod(
         name = name,
-        query = deleteClause.replace("\n%where", whereClause?.let { "\n$it" } ?: ""),
+        query = listOfNotNull(deleteClause, whereClause).joinToString("\n"),
         queryMethodParameters = queryMethodParameters,
         queryParameters = queryParameters,
         returnType = returnType,
@@ -465,6 +470,54 @@ private fun generateWhere(
         QueryParameter(
             path = parameters[i].name,
             kotlinType = parameters[i].type,
+            positionInQuery = i + 1,
+            setterName = getterSetterName(c),
+            isJson = c.column.type == PostgresType.JSONB,
+            isEnum = c.type.klass.isEnum,
+            convertToArray = conditions[i].op == Op.IN,
+            postgresType = c.column.type,
+        )
+    }
+    return whereClause to queryParameters
+}
+
+
+private fun generateWhere2(
+    parameters: List<FunctionParameter>,
+    repoMappedKlass: TableMapping,
+): Pair<String?, List<QueryParameter>> {
+
+    val param = parameters.single()
+
+    val whereColumns = if (repoMappedKlass.columns.any { it.column.isId }) {
+        repoMappedKlass.columns.filter { it.column.isId }
+    } else {
+        repoMappedKlass.columns
+    }
+
+    val conditions = whereColumns.map { Condition(it.column.name, it.column.nullable, Op.EQ) }
+
+    val whereClause = conditions
+        .takeIf { it.isNotEmpty() }
+        ?.let {
+            """
+                WHERE ${
+                it.joinToString(" AND ") {
+                    when {
+                        it.op == Op.EQ && !it.nullable -> "\"${it.columnName}\" = ?"
+                        it.op == Op.EQ && it.nullable -> "\"${it.columnName}\" IS NOT DISTINCT FROM ?"
+                        it.op == Op.IN -> "\"${it.columnName}\" = ANY (?)"
+                        else -> error("")
+                    }
+                }
+            }
+            """.trimIndent()
+        }
+
+    val queryParameters = whereColumns.mapIndexed { i, c ->
+        QueryParameter(
+            path = (listOf(param.name) + c.path).joinToString("."),
+            kotlinType = c.type,
             positionInQuery = i + 1,
             setterName = getterSetterName(c),
             isJson = c.column.type == PostgresType.JSONB,

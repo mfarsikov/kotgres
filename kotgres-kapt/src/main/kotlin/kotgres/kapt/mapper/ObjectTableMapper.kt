@@ -153,14 +153,11 @@ private fun KlassFunction.toDeleteMethod(repoMappedKlass: TableMapping): QueryMe
 
     //TODO check no Limit no pageable
 
+    val entityParamter = parameters.size == 1 && parameters.first().type.klass == repoMappedKlass.klass
+    val customWhere = annotationConfigs.any { it is Where }
     val (whereClause, queryParameters) = when {
-        annotationConfigs.any { it is Where } -> generateWhere(
-            parameters,
-            annotationConfigs.single { it is Where } as Where)
-        parameters.size == 1 && parameters.first().type.klass == repoMappedKlass.klass -> generateWhere2(
-            parameters,
-            repoMappedKlass
-        )
+        customWhere -> generateWhere(parameters, annotationConfigs.single { it is Where } as Where)
+        entityParamter -> generateWhere2(parameters, repoMappedKlass)
         else -> generateWhere(parameters, repoMappedKlass)
     }
 
@@ -181,7 +178,7 @@ private fun KlassFunction.toDeleteMethod(repoMappedKlass: TableMapping): QueryMe
         returnsCollection = false,
         pagination = null,
         objectConstructor = null,
-        optimisticallyLocked = false, //TODO
+        optimisticallyLocked = repoMappedKlass.columns.any { it.column.isVersion } && entityParamter && !customWhere,
     )
 }
 
@@ -490,7 +487,7 @@ private fun generateWhere2(
     val param = parameters.single()
 
     val whereColumns = if (repoMappedKlass.columns.any { it.column.isId }) {
-        repoMappedKlass.columns.filter { it.column.isId }
+        repoMappedKlass.columns.filter { it.column.isId || it.column.isVersion }
     } else {
         repoMappedKlass.columns
     }

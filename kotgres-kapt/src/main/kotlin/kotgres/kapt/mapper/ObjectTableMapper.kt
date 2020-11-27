@@ -9,6 +9,7 @@ import kotgres.annotations.OrderBy
 import kotgres.annotations.PostgresRepository
 import kotgres.annotations.Query
 import kotgres.annotations.Table
+import kotgres.annotations.Version
 import kotgres.annotations.Where
 import kotgres.aux.ColumnDefinition
 import kotgres.aux.PostgresType
@@ -175,6 +176,7 @@ private fun KlassFunction.toDeleteMethod(repoMappedKlass: TableMapping): QueryMe
         returnsCollection = false,
         pagination = null,
         objectConstructor = null,
+        optimisticallyLocked = false, //TODO
     )
 }
 
@@ -272,7 +274,8 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
         objectConstructor = constructor,
         returnsScalar = isScalar,
         pagination = paginationParameter,
-        queryMethodParameters = this.parameters.map { QueryMethodParameter(it.name, it.type) }
+        queryMethodParameters = this.parameters.map { QueryMethodParameter(it.name, it.type) },
+        optimisticallyLocked = false,
     )
 }
 
@@ -399,6 +402,7 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
         objectConstructor = constructor,
         returnsScalar = isCount || isExists,
         orderParameterName = orderParam?.name,
+        optimisticallyLocked = false,
     )
 }
 
@@ -536,6 +540,7 @@ enum class Op { EQ, IN }
 
 private fun KlassFunction.toSaveMethod(mappedKlass: TableMapping): QueryMethod {
 
+    val versionColumnName = mappedKlass.columns.find { it.column.isVersion }?.column?.name
 
     val param = parameters.singleOrNull()
         ?: throw KotgresException("save method must have a single parameter (List or an Entity). $this")
@@ -543,24 +548,28 @@ private fun KlassFunction.toSaveMethod(mappedKlass: TableMapping): QueryMethod {
     val insert = """
         INSERT INTO ${mappedKlass.fullTableName()}
         (${mappedKlass.columns.joinToString { "\"${it.column.name}\"" }})
-        VALUES (${mappedKlass.columns.joinToString { "?" }})
-    """.trimIndent()
+        VALUES (${mappedKlass.columns.joinToString { if(it.column.isVersion)"? + 1" else "?" }})
+        """.trimIndent()
 
-    val onConflict = """
+    val onConflict = if (
+        mappedKlass.columns.any { it.column.isId } &&
+        annotationConfigs.none { it is OnConflictFail }
+    ) {
+        """
         
         ON CONFLICT (${mappedKlass.columns.filter { it.column.isId }.joinToString { it.column.name }}) DO 
         UPDATE SET ${
-        mappedKlass.columns.joinToString { "\"${it.column.name}\" = EXCLUDED.\"${it.column.name}\"" }
+            mappedKlass.columns.joinToString {
+                """"${it.column.name}" = EXCLUDED."${it.column.name}""""
+            }
+        }
+        ${versionColumnName?.let { "WHERE ${mappedKlass.name}.$it = EXCLUDED.$it - 1" } ?: ""}
+        """.trimIndent()
+    } else {
+        ""
     }
-    """.trimIndent()
 
-    val query = if (
-        mappedKlass.columns.any { it.column.isId } &&
-        annotationConfigs.none { it is OnConflictFail }
-    )
-        insert + onConflict
-    else
-        insert
+    val query = insert + onConflict
 
 
     val queryType = if (KotlinType.of(param.type.klass.name) == KotlinType.LIST) {
@@ -598,6 +607,7 @@ private fun KlassFunction.toSaveMethod(mappedKlass: TableMapping): QueryMethod {
         trueReturnType = Type(Klass(KotlinType.UNIT.qn)),
         pagination = null,
         type = queryType,
+        optimisticallyLocked = versionColumnName != null,
     )
 }
 
@@ -620,7 +630,8 @@ private fun flattenToColumns(klass: Klass, path: List<String> = emptyList()): Li
                             name = colName,
                             nullable = field.type.nullability == Nullability.NULLABLE,
                             type = colType,
-                            isId = field.annotations.filterIsInstance<Id>().singleOrNull()?.let { true } ?: false
+                            isId = field.annotations.any { it is Id },
+                            isVersion = field.annotations.any { it is Version },
                         ),
                         type = field.type,
                     )

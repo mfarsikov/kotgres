@@ -51,7 +51,8 @@ object Checker {
                         name = rs.getString("column_name"),
                         nullable = rs.getBoolean("is_nullable"),
                         type = PostgresType.of(rs.getString("data_type")),
-                        isId = rs.getBoolean("primary_key")
+                        isId = rs.getBoolean("primary_key"),
+                        isVersion = false,
                     )
                 }
                 dbColumns

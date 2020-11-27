@@ -10,6 +10,7 @@ import kotgres.annotations.OrderBy
 import kotgres.annotations.PostgresRepository
 import kotgres.annotations.Query
 import kotgres.annotations.Table
+import kotgres.annotations.Version
 import kotgres.annotations.Where
 import kotgres.kapt.model.klass.Field
 import kotgres.kapt.model.klass.FunctionParameter
@@ -150,7 +151,8 @@ class Parser(
             .associate {
                 it.name.toString() to listOfNotNull(
                     it.getAnnotation(Column::class.java),
-                    it.getAnnotation(Id::class.java)
+                    it.getAnnotation(Id::class.java),
+                    it.getAnnotation(Version::class.java),
                 )
             }
 

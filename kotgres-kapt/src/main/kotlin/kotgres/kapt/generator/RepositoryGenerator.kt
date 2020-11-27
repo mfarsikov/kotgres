@@ -95,7 +95,17 @@ private fun TypeSpecBuilder.generateQueryMethod(
                             generateSingleElementExtractor(queryMethod)
                     }
                 } else {
-                    addStatement("it.execute()")
+                    if (queryMethod.optimisticallyLocked) {
+                        addStatement("val rows = it.executeUpdate()")
+                        `if`("rows != 1") {
+                            addStatement(
+                                "throw %M()",
+                                MemberName("kotgres.aux.exception", "OptimisticLockFailException")
+                            )
+                        }
+                    } else {
+                        addStatement("it.executeUpdate()")
+                    }
                 }
             }
         }
@@ -284,7 +294,17 @@ private fun TypeSpecBuilder.generateBatchQueryMethod(queryMethod: QueryMethod) {
 
                     addStatement("it.addBatch()")
                 }
-                addStatement("it.executeBatch()")
+                if (queryMethod.optimisticallyLocked) {
+                    addStatement("val rows = it.executeBatch()")
+                    `if`("rows.sum() != ${queryMethodParameter.name}.size") {
+                        addStatement(
+                            "throw %M()",
+                            MemberName("kotgres.aux.exception", "OptimisticLockFailException")
+                        )
+                    }
+                } else {
+                    addStatement("it.executeBatch()")
+                }
             }
         }
     }

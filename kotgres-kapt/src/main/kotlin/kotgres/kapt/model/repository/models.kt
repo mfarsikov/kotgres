@@ -27,6 +27,7 @@ data class QueryMethod(
     val pagination: Pagination?,
     val type: QueryMethodType = QueryMethodType.SINGLE,
     val orderParameterName: String? = null,
+    val optimisticallyLocked: Boolean,
 )
 
 enum class QueryMethodType { SINGLE, BATCH }

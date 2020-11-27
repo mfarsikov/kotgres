@@ -689,4 +689,26 @@ class MyClassRepositoryTest {
             },
         )
     }
+
+    @Test
+    fun `order by annotation`(){
+        val items = listOf(
+            item,
+            item.copy(id = "14", name = "item12"),
+            item.copy(id = "15", name = null),
+        )
+
+        db.transaction { myClassRepository.saveAll(items) }
+
+        val expected = listOf(
+            item.copy(id = "15", name = null),
+            item.copy(id = "14", name = "item12"),
+            item,
+        )
+
+        val actual = db.transaction { myClassRepository.findAllOrdered() }
+
+        assert(actual == expected)
+
+    }
 }

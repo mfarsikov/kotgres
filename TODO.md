@@ -27,8 +27,6 @@
 * `hasNext` (limit + 1?)
 
 ### Queries
-* Add `@Order` annotation
-  * Support dynamic ordering (Sort as a query parameter)
 * Optimistic lock
 * Find by all fields?
 ```kotlin

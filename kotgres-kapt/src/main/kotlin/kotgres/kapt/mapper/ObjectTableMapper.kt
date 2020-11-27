@@ -5,6 +5,7 @@ import kotgres.annotations.First
 import kotgres.annotations.Id
 import kotgres.annotations.Limit
 import kotgres.annotations.OnConflictFail
+import kotgres.annotations.OrderBy
 import kotgres.annotations.PostgresRepository
 import kotgres.annotations.Query
 import kotgres.annotations.Table
@@ -166,7 +167,7 @@ private fun KlassFunction.toDeleteMethod(repoMappedKlass: TableMapping): QueryMe
 
     return QueryMethod(
         name = name,
-        query = deleteClause.replace("%where", whereClause?.let { "\n$it" } ?: ""),
+        query = deleteClause.replace("\n%where", whereClause?.let { "\n$it" } ?: ""),
         queryMethodParameters = queryMethodParameters,
         queryParameters = queryParameters,
         returnType = returnType,
@@ -340,7 +341,13 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
             """.trimIndent()
     }
 
-    val orderClause = if(orderParam!= null) "%orderBy" else null
+    val orderByAnnotation = annotationConfigs.singleOrNull { it is OrderBy }
+
+    val orderClause = when {
+        orderParam != null -> "%orderBy"
+        orderByAnnotation != null -> "ORDER BY " + (orderByAnnotation as OrderBy).value
+        else -> null
+    }
 
     val queryMethodParameters = this.parameters.map { QueryMethodParameter(it.name, it.type) }
 
@@ -379,7 +386,7 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
     return QueryMethod(
         name = name,
         query = listOfNotNull(
-            selectClause.replace("%where", whereClause?.let { "\n$it" } ?: ""),
+            selectClause.replace("(\\n)?%where".toRegex(), whereClause?.let { "\n$it" } ?: ""),
             orderClause,
             limitClause,
         ).joinToString("\n"),

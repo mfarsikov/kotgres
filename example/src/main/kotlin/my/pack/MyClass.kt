@@ -5,6 +5,7 @@ import kotgres.annotations.First
 import kotgres.annotations.Id
 import kotgres.annotations.Limit
 import kotgres.annotations.OnConflictFail
+import kotgres.annotations.OrderBy
 import kotgres.annotations.PostgresRepository
 import kotgres.annotations.Query
 import kotgres.annotations.Where
@@ -65,7 +66,7 @@ interface MyClassRepository : Repository<MyClass> {
     fun count(): Int
     fun exists(id: String): Boolean
 
-    fun findAll(order: Order):List<MyClass>
+    fun findAll(order: Order): List<MyClass>
 
     @OnConflictFail
     fun saveOrFail(item: MyClass)
@@ -134,4 +135,7 @@ interface MyClassRepository : Repository<MyClass> {
 
     @Query("select id, date, list from my_class where name = :name")
     fun findByNamePagedCustom(name: String, pageable: Pageable): Page<ProjectionOfMyClass>
+
+    @OrderBy("name ASC NULLS FIRST, id DESC")
+    fun findAllOrdered(): List<MyClass>
 }

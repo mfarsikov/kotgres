@@ -6,6 +6,7 @@ import kotgres.annotations.First
 import kotgres.annotations.Id
 import kotgres.annotations.Limit
 import kotgres.annotations.OnConflictFail
+import kotgres.annotations.OrderBy
 import kotgres.annotations.PostgresRepository
 import kotgres.annotations.Query
 import kotgres.annotations.Table
@@ -113,6 +114,7 @@ class Parser(
                         it.getAnnotation(Limit::class.java),
                         it.getAnnotation(First::class.java),
                         it.getAnnotation(OnConflictFail::class.java),
+                        it.getAnnotation(OrderBy::class.java),
                     ),
                     params
                 ).let { it.signature to it }

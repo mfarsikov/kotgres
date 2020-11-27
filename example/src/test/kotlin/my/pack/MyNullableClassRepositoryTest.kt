@@ -1,5 +1,8 @@
 package my.pack
 
+import kotgres.aux.sort.Order
+import kotgres.aux.sort.SortCol
+import kotgres.aux.sort.SortOrder
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test

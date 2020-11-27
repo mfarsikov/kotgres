@@ -2,6 +2,10 @@ package my.pack
 
 import kotgres.aux.page.Page
 import kotgres.aux.page.Pageable
+import kotgres.aux.sort.NullsOrder
+import kotgres.aux.sort.Order
+import kotgres.aux.sort.SortCol
+import kotgres.aux.sort.SortOrder
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -26,7 +30,7 @@ class MyClassRepositoryTest {
 
         val item = MyClass(
             id = "13",
-            name = "iitem13",
+            name = "item13",
             myNestedClass = MyNestedClass(
                 proc = "bionic13",
                 myNestedNestedClass = MyNestedNestedClass(
@@ -131,11 +135,11 @@ class MyClassRepositoryTest {
     fun update() {
 
         db.transaction { myClassRepository.save(item) }
-        db.transaction { myClassRepository.save(item.copy(name = "iitem2")) }
+        db.transaction { myClassRepository.save(item.copy(name = "item2")) }
 
         val items = db.transaction(readOnly = true) { myClassRepository.findAll() }
 
-        assert(items == listOf(item.copy(name = "iitem2")))
+        assert(items == listOf(item.copy(name = "item2")))
     }
 
     @Test
@@ -502,13 +506,13 @@ class MyClassRepositoryTest {
 
         db.transaction { myClassRepository.saveAll(fourItems) }
 
-        fun limit(limit:Int) = db.transaction { myClassRepository.findByDate(item.date, limit = limit) }
+        fun limit(limit: Int) = db.transaction { myClassRepository.findByDate(item.date, limit = limit) }
 
         all(
-            { assert(limit(0).size == 0)},
-            { assert(limit(3).size == 3)},
-            { assert(limit(4).size == 4)},
-            { assert(limit(5).size == 4)},
+            { assert(limit(0).size == 0) },
+            { assert(limit(3).size == 3) },
+            { assert(limit(4).size == 4) },
+            { assert(limit(5).size == 4) },
         )
     }
 
@@ -539,7 +543,7 @@ class MyClassRepositoryTest {
         db.transaction { myClassRepository.saveAll(items) }
 
         fun query(pageable: Pageable): Page<MyClass> {
-            return db.transaction { myClassRepository.findByNamePaged(name = "iitem13", pageable = pageable) }
+            return db.transaction { myClassRepository.findByNamePaged(name = "item13", pageable = pageable) }
         }
 
         all(
@@ -564,7 +568,7 @@ class MyClassRepositoryTest {
         db.transaction { myClassRepository.saveAll(items) }
 
         fun query(pageable: Pageable): Page<MyClass> {
-            return db.transaction { myClassRepository.findByNamePagedWhere(name = "iitem13", pageable = pageable) }
+            return db.transaction { myClassRepository.findByNamePagedWhere(name = "item13", pageable = pageable) }
         }
 
         all(
@@ -604,7 +608,7 @@ class MyClassRepositoryTest {
         db.transaction { myClassRepository.saveAll(items) }
 
         fun query(pageable: Pageable): Page<ProjectionOfMyClass> {
-            return db.transaction { myClassRepository.findByNamePagedCustom(name = "iitem13", pageable = pageable) }
+            return db.transaction { myClassRepository.findByNamePagedCustom(name = "item13", pageable = pageable) }
         }
 
         all(
@@ -634,6 +638,55 @@ class MyClassRepositoryTest {
         all(
             { assert(exists("13")) },
             { assert(!exists("14")) },
+        )
+    }
+
+    @Test
+    fun order() {
+
+        val items = listOf(
+            item,
+            item.copy(id = "14", name = "item12"),
+            item.copy(id = "15", name = null),
+        )
+
+        db.transaction { myClassRepository.saveAll(items) }
+
+        fun select(order: Order) = db.transaction { myClassRepository.findAll(order) }
+
+        all(
+            {
+                val actual = select(Order(listOf(SortCol("id")))).map { it.id }
+                assert(actual == listOf("13", "14", "15")) { "order by id" }
+            },
+            {
+                val actual = select(Order(listOf(SortCol("id", SortOrder.DESC)))).map { it.id }
+                assert(actual == listOf("15", "14", "13")) { "order by id desc" }
+            },
+            {
+                val actual = select(Order(listOf(SortCol("name")))).map { it.name }
+                assert(actual == listOf("item12", "item13", null)) { "order by name" }
+            },
+            {
+                val actual = select(Order(listOf(SortCol("name", SortOrder.DESC)))).map { it.name }
+                assert(actual == listOf(null, "item13", "item12")) { "order by name desc" }
+            },
+            {
+
+
+                val actual = select(
+                    Order(
+                        listOf(
+                            SortCol(
+                                "name",
+                                SortOrder.DESC,
+                                NullsOrder.NULLS_FIRST
+                            )
+                        )
+                    )
+                ).map { it.name }
+                assert(actual == listOf(null, "item13", "item12")) { "order by name desc nulls first" }
+            },
         )
     }
 }

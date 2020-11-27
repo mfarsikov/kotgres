@@ -12,6 +12,7 @@ import kotgres.aux.PostgresType
 import kotgres.aux.Repository
 import kotgres.aux.page.Page
 import kotgres.aux.page.Pageable
+import kotgres.aux.sort.Order
 import java.sql.Date
 import java.sql.Timestamp
 import java.time.LocalDate
@@ -63,6 +64,8 @@ interface MyClassRepository : Repository<MyClass> {
     fun save(item: MyClass)
     fun count(): Int
     fun exists(id: String): Boolean
+
+    fun findAll(order: Order):List<MyClass>
 
     @OnConflictFail
     fun saveOrFail(item: MyClass)

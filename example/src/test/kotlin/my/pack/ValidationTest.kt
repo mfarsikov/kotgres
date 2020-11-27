@@ -27,6 +27,8 @@ class ValidationTest {
 
     @Test
     fun `missing primary key`(){
+        Thread.sleep(200) //without pause sometimes this test fails
+
         TestUtil.ds.connection.use { it.createStatement().execute("""
             create table validation_entity (
                 id uuid not null,

@@ -133,15 +133,48 @@ fun Klass.toRepo(dbQualifiedName: QualifiedName): Repo {
 
 private fun toQueryMethods(functions: List<KlassFunction>, mappedKlass: TableMapping?): List<QueryMethod> {
 
-    val (save, withoutSave) = functions.partition { it.name.startsWith("save") }
-    val (withQuery, other) = withoutSave.partition { it.annotationConfigs.any { it is Query } }
+    val (custom, dedicated) = functions.partition { it.annotationConfigs.any { it is Query } }
+    val (saves, notSave) = dedicated.partition { it.name.startsWith("save") }
+    val (deletes, queries) = notSave.partition { it.name.startsWith("delete") }
 
-    if ((other.isNotEmpty() || save.isNotEmpty()) && mappedKlass == null)
-        throw KotgresException("Only method with custom @Queries are allowed")
 
-    return other.map { it.toQueryMethod(mappedKlass!!) } +
-            withQuery.map { it.toCustomQueryMethod() } +
-            save.map { it.toSaveMethod(mappedKlass!!) }
+    if (dedicated.isNotEmpty() && mappedKlass == null)
+        throw KotgresException("Only method with custom @Queries are allowed in standalone repositories")
+
+    return queries.map { it.toQueryMethod(mappedKlass!!) } +
+            custom.map { it.toCustomQueryMethod() } +
+            saves.map { it.toSaveMethod(mappedKlass!!) } +
+            deletes.map { it.toDeleteMethod(mappedKlass!!) }
+}
+
+private fun KlassFunction.toDeleteMethod(repoMappedKlass: TableMapping): QueryMethod {
+
+    //TODO check no Limit no pageable
+
+    val (whereClause, queryParameters) = annotationConfigs
+        .singleOrNull { it is Where }
+        ?.let { generateWhere(parameters, it as Where) }
+        ?: generateWhere(parameters, repoMappedKlass)
+
+    val deleteClause = """
+                DELETE 
+                FROM ${repoMappedKlass.fullTableName()}
+                %where
+            """.trimIndent()
+
+    val queryMethodParameters = parameters.map { QueryMethodParameter(it.name, it.type) }
+
+    return QueryMethod(
+        name = name,
+        query = deleteClause.replace("%where", whereClause?.let { "\n$it" } ?: ""),
+        queryMethodParameters = queryMethodParameters,
+        queryParameters = queryParameters,
+        returnType = returnType,
+        trueReturnType = Type(Klass(KotlinType.UNIT.qn)),
+        returnsCollection = false,
+        pagination = null,
+        objectConstructor = null,
+    )
 }
 
 private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
@@ -246,10 +279,14 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
 
     val paginationParameter = paginationParameter()
 
+    val orderQualifiedName = QualifiedName("kotgres.aux.sort", "Order")
+    val orderParam = parameters.singleOrNull { it.type.klass.name == orderQualifiedName }
+
     val limitParameter = parameters.singleOrNull { it.annotations.any { it is Limit } }
 
     val parameters = parameters.filter {
         it.type.klass.name != pageableQualifiedName &&
+                it.type.klass.name != orderQualifiedName &&
                 it.annotations.none { it is Limit }
     }
 
@@ -271,12 +308,10 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
         ?.let { generateWhere(parameters, it as Where) }
         ?: generateWhere(parameters, repoMappedKlass)
 
-    val isDelete = name.startsWith("delete")
-
     val methodAnnotation = annotationConfigs.filterIsInstance<Limit>().singleOrNull()
 
     val limitClause = when {
-        isDelete || isCount || isExists -> null
+        isCount || isExists -> null
         returnsCollection && limitParameter != null -> "LIMIT ?"
         returnsCollection && methodAnnotation != null -> "LIMIT ${methodAnnotation.value}"
         returnsCollection -> null
@@ -285,12 +320,7 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
         else -> "LIMIT 2"
     }
 
-    val selectOrDeleteClause = when {
-        isDelete -> """
-                DELETE 
-                FROM ${repoMappedKlass.fullTableName()}
-                %where
-            """.trimIndent()
+    val selectClause = when {
         isCount -> """
                 SELECT count(*) 
                 FROM ${repoMappedKlass.fullTableName()}
@@ -309,6 +339,8 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
                 %where
             """.trimIndent()
     }
+
+    val orderClause = if(orderParam!= null) "%orderBy" else null
 
     val queryMethodParameters = this.parameters.map { QueryMethodParameter(it.name, it.type) }
 
@@ -341,15 +373,15 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
             isPrimitive = true,
             isNullable = trueReturnType.nullability == Nullability.NULLABLE,
         )
-        isDelete -> null
         else -> returnKlassTableMapping!!.objectConstructor
     }
 
     return QueryMethod(
         name = name,
         query = listOfNotNull(
-            selectOrDeleteClause.replace("%where", whereClause ?: ""),
-            limitClause
+            selectClause.replace("%where", whereClause?.let { "\n$it" } ?: ""),
+            orderClause,
+            limitClause,
         ).joinToString("\n"),
         queryMethodParameters = queryMethodParameters,
         queryParameters = queryParameters + limitQueryParameters,
@@ -359,6 +391,7 @@ private fun KlassFunction.toQueryMethod(repoMappedKlass: TableMapping): QueryMet
         pagination = paginationParameter,
         objectConstructor = constructor,
         returnsScalar = isCount || isExists,
+        orderParameterName = orderParam?.name,
     )
 }
 

@@ -73,7 +73,16 @@ private fun TypeSpecBuilder.generateQueryMethod(
         })
 
         addCode {
-            addStatement("val query = %S", queryMethod.query)
+            if (queryMethod.orderParameterName == null)
+                addStatement("val query = %S", queryMethod.query)
+            else
+                addStatement(
+                    "val query = %S.replace(%S, %L.stringify())",
+                    queryMethod.query,
+                    "%orderBy",
+                    queryMethod.orderParameterName
+                )
+
             controlFlow("return connection.prepareStatement(query).use") {
 
                 generateParametersSetBlock(queryMethod.queryParameters, "")
@@ -337,7 +346,7 @@ private fun CodeBlockBuilder.generateParametersSetBlock(
 }
 
 private fun TypeSpecBuilder.generateCheckFunction(repo: Repo) {
-    if(repo.mappedKlass == null) return
+    if (repo.mappedKlass == null) return
 
     addFunction("check") {
         addModifiers(KModifier.OVERRIDE)

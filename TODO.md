@@ -28,8 +28,11 @@
 
 ### Queries
 * Add `@Order` annotation
-* Support dynamic ordering (Sort as a query parameter) (combined with limit?)
-* Repository could consist of custom queries, and it is not required to extend the `Repository<T>`
-  * error on query methods without `@Query` annotation
+  * Support dynamic ordering (Sort as a query parameter)
 * Optimistic lock
-* Delete by entity `fun delete(item: Item)`
+* Find by all fields?
+```kotlin
+fun find(item: Item): Item?
+fun delete(item: Item)
+fun exists(item: Item): Boolean
+```

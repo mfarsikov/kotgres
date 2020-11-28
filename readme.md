@@ -48,6 +48,7 @@ data class Person(
 
 @PostgresRepository
 interface PersonRepository : Repository<Person> {
+    fun save(person: Person)
     fun findBy(birthDate: LocalDate): List<Person>
 }
 
@@ -55,6 +56,58 @@ interface PersonRepository : Repository<Person> {
 #### Generate the code
 `./gradlew kaptKotlin` generates in the folder `build/generated/source/kapt` two classes:
 `PersonRepositoryImpl` and `DB`
+<details>
+<summary>Generated code</summary>
+
+
+```kotlin
+
+@Generated
+internal class PersonRepositoryImpl(
+  private val connection: Connection
+) : PersonRepository {
+  
+  public override fun findBy(birthDate: LocalDate): List<Person> {
+    val query = """
+        |SELECT "birth_date", "id", "name"
+        |FROM "person"
+        |WHERE "birth_date" = ?
+        """.trimMargin()
+    return connection.prepareStatement(query).use {
+      it.setObject(1, birthDate)
+      it.executeQuery().use {
+        val acc = mutableListOf<Person>()
+        while (it.next()) {
+          acc +=
+             Person(
+              birthDate = it.getObject("birth_date", java.time.LocalDate::class.java),
+              id = it.getObject("id", UUID::class.java),
+              name = it.getString("name"),
+            )
+        }
+        acc
+      }
+    }
+  }
+
+  public override fun save(person: Person): Unit {
+    val query = """
+        |INSERT INTO "person"
+        |("birth_date", "id", "name")
+        |VALUES (?, ?, ?)
+        |ON CONFLICT (id) DO 
+        |UPDATE SET "birth_date" = EXCLUDED."birth_date", "id" = EXCLUDED."id", "name" = EXCLUDED."name"
+        |""".trimMargin()
+    return connection.prepareStatement(query).use {
+      it.setObject(1, person.birthDate)
+      it.setObject(2, person.id)
+      it.setString(3, person.name)
+      it.executeUpdate()
+    }
+  }
+}
+```
+</details>
 
 #### Usage
 ```kotlin
@@ -117,7 +170,309 @@ Use full power of Postrgesql (such as JSON queries and full text search queries)
 
 Avoid accidental complexity
 
-## Entities
+## Queries
+### Standalone repositories
+Let's start from the simplest interface:
+```kotlin
+@PostgresRepository
+interface PersonRepository 
+```
+For each interface marked as `@PostgresRepository` task `kaptKotlin` generates implementations in folder 
+`build/generated/source/kapt/`: 
+<details>
+<summary>Generated code</summary>
+
+```kotlin
+@Generated
+internal class PersonRepositoryImpl(
+  private val connection: Connection
+) : PersonRepository 
+```
+</details>
+
+#### Simplest query
+Next we can add a function annotated with `@Query`:
+```kotlin
+@PostgresRepository
+interface PersonRepository {
+  @Query("SELECT id, name, birth_date FROM person")
+  fun findPeople(): List<Person>
+}
+```
+Method name does not make sense, all information is taken from annotation, input parameter types (or absence of input parameters)
+and the return type.
+Kotgres knows that return type is a `List` so it expects multiple results.
+Based on list type parameter `Person` it also knows which fields to extract from the `ResultSet`.
+
+<details>
+<summary>Generated code</summary>
+
+```kotlin
+public override fun findPeople(): List<Person> {
+  val query = "SELECT id, name, birth_date FROM person"
+  return connection.prepareStatement(query).use {
+    it.executeQuery().use {
+      val acc = mutableListOf<Person>()
+      while (it.next()) {
+        acc +=
+          Person(
+            birthDate = it.getObject("birth_date", LocalDate::class.java),
+            id = it.getObject("id", java.util.UUID::class.java),
+            name = it.getString("name"),
+          )
+      }
+      acc
+    }
+  }
+}
+```
+</details>
+
+#### Query parameters
+Then declare a method with parameters:
+```kotlin
+@Query("SELECT id, name, birth_date FROM person WHERE name = :name")
+fun selectWhere(name: String): List<Person>
+```
+Note that the parameter name (`name`) must match named placeholder in the query (`:name`).
+<details>
+<summary>Generated code</summary>
+
+```kotlin
+  public override fun selectWhere(name: String): List<Person> {
+  val query = "SELECT id, name, birth_date FROM person WHERE name = ?"
+  return connection.prepareStatement(query).use {
+    it.setString(1, name)
+    it.executeQuery().use {
+      val acc = mutableListOf<Person>()
+      while (it.next()) {
+        acc +=
+          Person(
+            birthDate = it.getObject("birth_date", LocalDate::class.java),
+            id = it.getObject("id", UUID::class.java),
+            name = it.getString("name"),
+          )
+      }
+      acc
+    }
+  }
+}
+```
+</details>
+
+Query parameter set to the query, and it is safe in terms of SQL injections.
+
+#### Return single non-nullable value
+If method returns a single non-nullable value
+```kotlin
+@Query("SELECT id, name, birth_date FROM person WHERE id = :id")
+fun selectWhere(id: UUID): Person
+```
+Generated code will throw exceptions in two cases:
+* if query does not have any result
+* if query has more than one result
+
+<details>
+<summary>Generated code</summary>
+
+```kotlin
+public override fun selectWhere(id: java.util.UUID): Person {
+  val query = """
+      |SELECT id, name, birth_date FROM person WHERE id = ?
+      |LIMIT 2
+      """.trimMargin()
+  return connection.prepareStatement(query).use {
+    it.setObject(1, id)
+    it.executeQuery().use {
+      if (it.next()) {
+        if (!it.isLast) {
+          throw IllegalStateException("Query has returned more than one element")
+        }
+         Person(
+          birthDate = it.getObject("birth_date", LocalDate::class.java),
+          id = it.getObject("id", UUID::class.java),
+          name = it.getString("name"),
+        )
+      }
+      else {
+        throw NoSuchElementException()
+      }
+    }
+  }
+}
+```
+</details>
+
+#### Return single nullable value
+If return type is nullable:
+```kotlin
+@Query("SELECT id, name, birth_date FROM person WHERE id = :id")
+fun selectWhere(id: UUID): Person?
+```
+Generated code returns `null` if there is no result
+<details>
+<summary>Generated code</summary>
+
+```kotlin
+public override fun selectWhere(id: java.util.UUID): Person? {
+  val query = """
+      |SELECT id, name, birth_date FROM person WHERE id = ?
+      |LIMIT 2
+      """.trimMargin()
+  return connection.prepareStatement(query).use {
+    it.setObject(1, id)
+    it.executeQuery().use {
+      if (it.next()) {
+        if (!it.isLast) {
+          throw IllegalStateException("Query has returned more than one element")
+        }
+         Person(
+          birthDate = it.getObject("birth_date", LocalDate::class.java),
+          id = it.getObject("id", UUID::class.java),
+          name = it.getString("name"),
+        )
+      }
+      else {
+        null
+      }
+    }
+  }
+}
+```
+</details>
+
+#### Alternative to `in` operator
+
+```kotlin
+@Query("SELECT id, name, birth_date FROM person WHERE name = ANY :names")
+fun selectWhere(names: List<String>): List<Person>
+```
+
+
+<details>
+<summary>Generated code</summary>
+
+```kotlin
+public override fun selectWhere(names: List<String>): List<Person> {
+  val query = "SELECT id, name, birth_date FROM person WHERE name = ANY ?"
+  return connection.prepareStatement(query).use {
+    it.setArray(1, connection.createArrayOf("text", names.toTypedArray()))
+    it.executeQuery().use {
+      val acc = mutableListOf<Person>()
+      while (it.next()) {
+        acc +=
+           Person(
+            birthDate = it.getObject("birth_date", LocalDate::class.java),
+            id = it.getObject("id", UUID::class.java),
+            name = it.getString("name"),
+          )
+      }
+      acc
+    }
+  }
+}
+```
+</details>
+  
+#### Pagination
+```kotlin
+@Query("SELECT id, name, birth_date FROM person WHERE name = :name")
+fun select(name: String, pagination: Pageable): Page<Person>
+```
+
+<details>
+<summary>Generated code</summary>
+
+```kotlin
+public override fun select(name: String, pagination: Pageable): Page<Person> {
+  val query = """
+      |SELECT id, name, birth_date FROM person WHERE name = ?
+      |LIMIT ? OFFSET ?
+      """.trimMargin()
+  return connection.prepareStatement(query).use {
+    it.setString(1, name)
+    it.setInt(2, pagination.pageSize)
+    it.setInt(3, pagination.offset)
+    it.executeQuery().use {
+      val acc = mutableListOf<Person>()
+      while (it.next()) {
+        acc +=
+           Person(
+            birthDate = it.getObject("birth_date", LocalDate::class.java),
+            id = it.getObject("id", UUID::class.java),
+            name = it.getString("name"),
+          )
+      }
+      Page(pagination, acc)
+    }
+  }
+}
+```
+</details>
+
+#### Scalar return type
+
+```kotlin
+@Query("SELECT name WHERE id = :id")
+fun selectNameWhere(id: UUID): String
+```
+<details>
+<summary>Generated code</summary>
+
+```kotlin
+public override fun selectNameWhere(id: java.util.UUID): String {
+  val query = """
+      |SELECT name WHERE id = ?
+      |LIMIT 2
+      """.trimMargin()
+  return connection.prepareStatement(query).use {
+    it.setObject(1, id)
+    it.executeQuery().use {
+      if (it.next()) {
+        if (!it.isLast) {
+          throw IllegalStateException("Query has returned more than one element")
+        }
+        it.getString(1)
+      }
+      else {
+        throw NoSuchElementException()
+      }
+    }
+  }
+}
+```
+</details>
+
+#### List of scalar return type
+```kotlin
+@Query("SELECT id WHERE name = :name")
+fun selectIdsWhere(name: String): List<UUID>
+```
+<details>
+<summary>Generated code</summary>
+
+```kotlin
+public override fun selectIdsWhere(name: String): List<java.util.UUID> {
+  val query = "SELECT id WHERE name = ?"
+  return connection.prepareStatement(query).use {
+    it.setString(1, name)
+    it.executeQuery().use {
+      val acc = mutableListOf<java.util.UUID>()
+      while (it.next()) {
+        acc +=
+          it.getObject(1, UUID::class.java)
+      }
+      acc
+    }
+  }
+}
+```
+</details>
+
+### Dedicated repositories 
+Standalone repositories can not do a lot, because they do not know enough, unlike dedicated repositories, 
+which are dedicated to specific entity (table).
+//TODO continue
 ### Declaration
 Entity is a Kotlin data class. 
 It should be declared in the source code, not imported from a library (maybe this will be changed in future).

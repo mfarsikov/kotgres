@@ -38,7 +38,7 @@ fun generateDb(dbDescription: DbDescription): FileSpec {
             addFunction("transaction") {
 
                 val repoHolder = ClassName(dbDescription.pkg, "${dbDescription.name}RepositoryHolder")
-                addParameter(ParameterSpec.builder("readOnly", Boolean::class).defaultValue("%L", false).build())
+                addParameter(ParameterSpec.builder("readOnly", Boolean::class).defaultValue("false").build())
                 ClassName.bestGuess(IsolationLevel::class.qualifiedName!!)
                 val readCommitted =
                     MemberName(ClassName.bestGuess(IsolationLevel::class.qualifiedName!!), "READ_COMMITTED")

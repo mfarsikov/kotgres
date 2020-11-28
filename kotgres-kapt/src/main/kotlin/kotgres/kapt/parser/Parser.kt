@@ -2,6 +2,7 @@ package kotgres.kapt.parser
 
 import com.sun.tools.javac.code.Symbol
 import kotgres.annotations.Column
+import kotgres.annotations.Delete
 import kotgres.annotations.First
 import kotgres.annotations.Id
 import kotgres.annotations.Limit
@@ -9,6 +10,8 @@ import kotgres.annotations.OnConflictFail
 import kotgres.annotations.OrderBy
 import kotgres.annotations.PostgresRepository
 import kotgres.annotations.Query
+import kotgres.annotations.Save
+import kotgres.annotations.Statement
 import kotgres.annotations.Table
 import kotgres.annotations.Version
 import kotgres.annotations.Where
@@ -110,12 +113,15 @@ class Parser(
                 FunAnnotations(
                     it.toFunctionSignature(),
                     listOfNotNull(
-                        it.getAnnotation(Where::class.java),
+                        it.getAnnotation(Delete::class.java),
+                        it.getAnnotation(First::class.java),
                         it.getAnnotation(Query::class.java),
                         it.getAnnotation(Limit::class.java),
-                        it.getAnnotation(First::class.java),
                         it.getAnnotation(OnConflictFail::class.java),
                         it.getAnnotation(OrderBy::class.java),
+                        it.getAnnotation(Save::class.java),
+                        it.getAnnotation(Statement::class.java),
+                        it.getAnnotation(Where::class.java),
                     ),
                     params
                 ).let { it.signature to it }

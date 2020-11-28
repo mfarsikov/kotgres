@@ -2,6 +2,7 @@ package my.pack
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
+import org.flywaydb.core.Flyway
 import java.sql.Date
 import java.sql.Timestamp
 import java.time.Instant
@@ -18,11 +19,13 @@ fun main() {
         username = "postgres"
     })
 
+    Flyway.configure().dataSource(ds).load().migrate()
+
     val db = DB(ds)
 
-    val phone = MyClass(
+    val item = MyClass(
         id = "13",
-        name = "iphone13",
+        name = "item13",
         myNestedClass = MyNestedClass(
             proc = "bionic13",
             myNestedNestedClass = MyNestedNestedClass(
@@ -43,9 +46,15 @@ fun main() {
         nullableInt = null
     )
 
-    db.transaction { myClassRepository.saveAll(listOf(phone)) }
 
+    db.transaction(autoCommit = true) {
+        myClassRepository.turnOnLogsOnServerForCurrentTransaction()
+        myClassRepository.saveAll(listOf(item, item.copy(id = "14")))
+    }
 
-    println("items: ${db.transaction { myClassRepository.findAll() }}")
+    println("DONE")
+    //db.transaction { myClassRepository.deleteAll() }
+
+    //println("items: ${db.transaction { myClassRepository.findAll() }}")
 
 }

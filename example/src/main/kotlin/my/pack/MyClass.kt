@@ -8,6 +8,7 @@ import kotgres.annotations.OnConflictFail
 import kotgres.annotations.OrderBy
 import kotgres.annotations.PostgresRepository
 import kotgres.annotations.Query
+import kotgres.annotations.Statement
 import kotgres.annotations.Where
 import kotgres.aux.PostgresType
 import kotgres.aux.Repository
@@ -139,4 +140,7 @@ interface MyClassRepository : Repository<MyClass> {
 
     @OrderBy("name ASC NULLS FIRST, id DESC")
     fun findAllOrdered(): List<MyClass>
+
+    @Statement("SELECT set_config('log_statement', 'all', true)")
+    fun turnOnLogsOnServerForCurrentTransaction()
 }

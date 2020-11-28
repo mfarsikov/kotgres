@@ -27,10 +27,23 @@
 * `hasNext` (limit + 1?)
 
 ### Queries
-* Optimistic lock
 * Find by all fields?
 ```kotlin
 fun find(item: Item): Item?
 fun delete(item: Item)
 fun exists(item: Item): Boolean
+```
+* delete by list
+```kotlin
+fun delete(items: List<Item>)
+```
+
+* Batch insert sends whole query per item. Check whether it is possible to use syntax 
+  (probably with additional annotation, and without ON CONFLICT):
+```sql
+insert into t (col_a, col_b)
+values
+(1, 2),
+(3, 4),
+...
 ```

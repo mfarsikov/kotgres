@@ -4,6 +4,7 @@ import java.sql.Connection
 import java.sql.Savepoint
 
 interface DbOperations {
+    fun commit()
     fun rollback()
     fun rollbackTo(savepoint: Savepoint)
     fun savePoint(): Savepoint
@@ -12,6 +13,10 @@ interface DbOperations {
 class DbOperationsImpl(
     private val connection: Connection,
 ) : DbOperations {
+
+    override fun commit() {
+        connection.commit()
+    }
 
     override fun rollback() {
         connection.rollback()

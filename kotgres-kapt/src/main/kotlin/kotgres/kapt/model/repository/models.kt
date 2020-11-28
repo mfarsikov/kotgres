@@ -28,6 +28,7 @@ data class QueryMethod(
     val type: QueryMethodType = QueryMethodType.SINGLE,
     val orderParameterName: String? = null,
     val optimisticallyLocked: Boolean,
+    val isStatement: Boolean = false,
 )
 
 enum class QueryMethodType { SINGLE, BATCH }

@@ -1,6 +1,7 @@
 package kotgres.kapt.mapper
 
 import kotgres.annotations.Column
+import kotgres.annotations.Delete
 import kotgres.annotations.First
 import kotgres.annotations.Id
 import kotgres.annotations.Limit
@@ -8,6 +9,8 @@ import kotgres.annotations.OnConflictFail
 import kotgres.annotations.OrderBy
 import kotgres.annotations.PostgresRepository
 import kotgres.annotations.Query
+import kotgres.annotations.Save
+import kotgres.annotations.Statement
 import kotgres.annotations.Table
 import kotgres.annotations.Version
 import kotgres.annotations.Where
@@ -135,10 +138,9 @@ fun Klass.toRepo(dbQualifiedName: QualifiedName): Repo {
 
 private fun toQueryMethods(functions: List<KlassFunction>, mappedKlass: TableMapping?): List<QueryMethod> {
 
-    val (custom, dedicated) = functions.partition { it.annotationConfigs.any { it is Query } }
-    val (saves, notSave) = dedicated.partition { it.name.startsWith("save") }
-    val (deletes, queries) = notSave.partition { it.name.startsWith("delete") }
-
+    val (custom, dedicated) = functions.partition { isCustomQueryMethod(it) }
+    val (saves, notSave) = dedicated.partition { isSaveMethod(it) }
+    val (deletes, queries) = notSave.partition { isDeleteMethod(it) }
 
     if (dedicated.isNotEmpty() && mappedKlass == null)
         throw KotgresException("Only method with custom @Queries are allowed in standalone repositories")
@@ -148,6 +150,17 @@ private fun toQueryMethods(functions: List<KlassFunction>, mappedKlass: TableMap
             saves.map { it.toSaveMethod(mappedKlass!!) } +
             deletes.map { it.toDeleteMethod(mappedKlass!!) }
 }
+
+private fun isCustomQueryMethod(it: KlassFunction) =
+    it.annotationConfigs.any { it is Query && it.value.isNotEmpty() || it is Statement }
+
+private fun isDeleteMethod(it: KlassFunction) = it.annotationConfigs.any { it is Delete } ||
+        it.name.startsWith("delete") &&
+        it.annotationConfigs.none { it is Query || it is Save }
+
+private fun isSaveMethod(it: KlassFunction) = it.annotationConfigs.any { it is Save } ||
+        it.name.startsWith("save") &&
+        it.annotationConfigs.none { it is Query || it is Delete }
 
 private fun KlassFunction.toDeleteMethod(repoMappedKlass: TableMapping): QueryMethod {
 
@@ -188,7 +201,12 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
 
     val parameters = parameters.filter { it.type.klass.name != pageableQualifiedName }
 
-    val query = annotationConfigs.filterIsInstance<Query>().singleOrNull()?.value!!
+    //TODO check statement returns UNIT
+    val query = when {
+        annotationConfigs.any { it is Query } -> (annotationConfigs.single { it is Query } as Query).value
+        annotationConfigs.any { it is Statement } -> (annotationConfigs.single { it is Statement } as Statement).value
+        else -> throw KotgresException("Cannot find none of [@Query, @Statement]. Function: $this")
+    }
 
     val parametersByName = parameters.associateBy { it.name }
 
@@ -278,6 +296,7 @@ private fun KlassFunction.toCustomQueryMethod(): QueryMethod {
         pagination = paginationParameter,
         queryMethodParameters = this.parameters.map { QueryMethodParameter(it.name, it.type) },
         optimisticallyLocked = false,
+        isStatement = annotationConfigs.any { it is Statement },
     )
 }
 
@@ -598,7 +617,7 @@ private fun KlassFunction.toSaveMethod(mappedKlass: TableMapping): QueryMethod {
     val insert = """
         INSERT INTO ${mappedKlass.fullTableName()}
         (${mappedKlass.columns.joinToString { "\"${it.column.name}\"" }})
-        VALUES (${mappedKlass.columns.joinToString { if(it.column.isVersion)"? + 1" else "?" }})
+        VALUES (${mappedKlass.columns.joinToString { if (it.column.isVersion) "? + 1" else "?" }})
         """.trimIndent()
 
     val onConflict = if (

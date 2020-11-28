@@ -95,16 +95,18 @@ private fun TypeSpecBuilder.generateQueryMethod(
                             generateSingleElementExtractor(queryMethod)
                     }
                 } else {
-                    if (queryMethod.optimisticallyLocked) {
-                        addStatement("val rows = it.executeUpdate()")
-                        `if`("rows != 1") {
-                            addStatement(
-                                "throw %M()",
-                                MemberName("kotgres.aux.exception", "OptimisticLockFailException")
-                            )
+                    when {
+                        queryMethod.optimisticallyLocked -> {
+                            addStatement("val rows = it.executeUpdate()")
+                            `if`("rows != 1") {
+                                addStatement(
+                                    "throw %M()",
+                                    MemberName("kotgres.aux.exception", "OptimisticLockFailException")
+                                )
+                            }
                         }
-                    } else {
-                        addStatement("it.executeUpdate()")
+                        queryMethod.isStatement -> addStatement("it.execute()")
+                        else -> addStatement("it.executeUpdate()")
                     }
                 }
             }

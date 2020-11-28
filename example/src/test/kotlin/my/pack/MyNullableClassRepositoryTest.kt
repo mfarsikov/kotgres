@@ -66,8 +66,8 @@ class MyNullableClassRepositoryTest {
             rollback()
         }
 
-        val phones = db.transaction(readOnly = true) { myNullableClassRepository.findAll() }
-        assert(phones.isEmpty()) { "rollback does not work" }
+        val items = db.transaction(readOnly = true) { myNullableClassRepository.findAll() }
+        assert(items.isEmpty()) { "rollback does not work" }
     }
 
     @Test
@@ -80,8 +80,8 @@ class MyNullableClassRepositoryTest {
         } catch (ex: IllegalStateException) {
         }
 
-        val phones = db.transaction(readOnly = true) { myNullableClassRepository.findAll() }
-        assert(phones.isEmpty())
+        val items = db.transaction(readOnly = true) { myNullableClassRepository.findAll() }
+        assert(items.isEmpty())
     }
 
     @Test
@@ -91,35 +91,35 @@ class MyNullableClassRepositoryTest {
             myNullableClassRepository.save(item)
         }
 
-        val phones2 = db.transaction(readOnly = true) { myNullableClassRepository.findAll() }
+        val items2 = db.transaction(readOnly = true) { myNullableClassRepository.findAll() }
 
-        assert(phones2 == listOf(item))
+        assert(items2 == listOf(item))
     }
 
     @Test
     fun saveAll() {
 
-        val phones = listOf(item, item.copy(id = "14"))
+        val items = listOf(item, item.copy(id = "14"))
 
         db.transaction {
-            myNullableClassRepository.saveAll(phones)
+            myNullableClassRepository.saveAll(items)
 
         }
 
-        val phones2 = db.transaction(readOnly = true) { myNullableClassRepository.findAll() }
+        val items2 = db.transaction(readOnly = true) { myNullableClassRepository.findAll() }
 
-        assert(phones2 == phones)
+        assert(items2 == items)
     }
 
     @Test
     fun update() {
 
         db.transaction { myNullableClassRepository.save(item) }
-        db.transaction { myNullableClassRepository.save(item.copy(name = "iphone2")) }
+        db.transaction { myNullableClassRepository.save(item.copy(name = "item2")) }
 
-        val phones = db.transaction(readOnly = true) { myNullableClassRepository.findAll() }
+        val items = db.transaction(readOnly = true) { myNullableClassRepository.findAll() }
 
-        assert(phones == listOf(item.copy(name = "iphone2")))
+        assert(items == listOf(item.copy(name = "item2")))
     }
 
     @Test
@@ -380,16 +380,16 @@ class MyNullableClassRepositoryTest {
     @Test
     fun `select IN`() {
 
-        val phones = listOf(item, item.copy(id = "14"))
+        val items = listOf(item, item.copy(id = "14"))
         db.transaction {
-            myNullableClassRepository.saveAll(phones)
+            myNullableClassRepository.saveAll(items)
         }
 
         fun `id in`(ids: List<String>) =
             db.transaction { myNullableClassRepository.findByIdIn(ids) }
 
         all(
-            { assert(`id in`(listOf("13", "14")) == phones) },
+            { assert(`id in`(listOf("13", "14")) == items) },
             { assert(`id in`(listOf("15")) == emptyList<MyClass>()) },
             { assert(`id in`(emptyList()) == emptyList<MyClass>()) },
         )
@@ -397,9 +397,9 @@ class MyNullableClassRepositoryTest {
 
     @Test
     fun `select IN with @Where`() {
-        val phones = listOf(item, item.copy(id = "14"))
+        val items = listOf(item, item.copy(id = "14"))
         db.transaction {
-            myNullableClassRepository.saveAll(phones)
+            myNullableClassRepository.saveAll(items)
         }
 
         fun `id in`(ids: List<String>) =
@@ -426,9 +426,9 @@ class MyNullableClassRepositoryTest {
 
     @Test
     fun `select IN with custom query`() {
-        val phones = listOf(item.copy(date = Date.valueOf("2010-01-01")))
+        val items = listOf(item.copy(date = Date.valueOf("2010-01-01")))
         db.transaction {
-            myNullableClassRepository.saveAll(phones)
+            myNullableClassRepository.saveAll(items)
         }
 
         fun `dates in`(dates: List<String>) =
@@ -452,22 +452,22 @@ class MyNullableClassRepositoryTest {
 
     @Test
     fun `save-read null value`() {
-        val noNamePhone = item.copy(name = null)
+        val noNameItem = item.copy(name = null)
 
-        db.transaction { myNullableClassRepository.save(noNamePhone) }
-        val fromDb = db.transaction { myNullableClassRepository.findById(noNamePhone.id) }
+        db.transaction { myNullableClassRepository.save(noNameItem) }
+        val fromDb = db.transaction { myNullableClassRepository.findById(noNameItem.id) }
 
-        assert(fromDb == noNamePhone)
+        assert(fromDb == noNameItem)
     }
 
     @Test
     fun `where name is null`() {
-        val noNamePhone = item.copy(name = null)
+        val noNameItem = item.copy(name = null)
 
-        db.transaction { myNullableClassRepository.save(noNamePhone) }
+        db.transaction { myNullableClassRepository.save(noNameItem) }
         val fromDb = db.transaction { myNullableClassRepository.findByName(null) }
 
-        assert(fromDb == noNamePhone)
+        assert(fromDb == noNameItem)
     }
 
     @Test

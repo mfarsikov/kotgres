@@ -635,22 +635,22 @@ Checks for absent/extra fields, type/nullability mismatch, key fields/primary ke
 
 ## Type mappings
 
-|Kotlin type              | Postgresql type             |
-|-------------------------|-----------------------------|
-|java.math.BigDecimal     | numeric                     |
-|kotlin.Boolean           | boolean                     |
-|kotlin.ByteArray         | bytea                       |
-|java.sql.Date            | date                        |
-|kotlin.Double            | double precision            |
-|kotlin.Float             | real                        |
-|kotlin.Int               | integer                     |
-|kotlin.collections.List  | jsonb                       |
-|kotlin.Long              | bigint                      |
-|java.time.LocalDate      | date                        |
-|java.time.LocalDateTime  | timestamp without time zone |
-|java.time.LocalTime      | time without time zone      |
-|kotlin.collections.Map   | jsonb                       |
-|kotlin.String            | text                        |
-|java.sql.Time            | time without time zone      |
-|java.sql.Timestamp       | timestamp with time zone    |
-|java.util.UUID           | uuid                        |
+| Kotlin type               |  Postgresql type              |
+| ------------------------- | ----------------------------- |
+| java.math.BigDecimal      |  numeric                      |
+| kotlin.Boolean            |  boolean                      |
+| kotlin.ByteArray          |  bytea                        |
+| java.sql.Date             |  date                         |
+| kotlin.Double             |  double precision             |
+| kotlin.Float              |  real                         |
+| kotlin.Int                |  integer                      |
+| kotlin.collections.List   |  jsonb                        |
+| kotlin.Long               |  bigint                       |
+| java.time.LocalDate       |  date                         |
+| java.time.LocalDateTime   |  timestamp without time zone  |
+| java.time.LocalTime       |  time without time zone       |
+| kotlin.collections.Map    |  jsonb                        |
+| kotlin.String             |  text                         |
+| java.sql.Time             |  time without time zone       |
+| java.sql.Timestamp        |  timestamp with time zone     |
+| java.util.UUID            |  uuid                         |

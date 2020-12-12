@@ -22,7 +22,6 @@ dependencies {
     implementation("io.github.enjoydambience:kotlinbard:0.4.0")
     implementation(project(":kotgres-core"))
 
-    implementation(files("${System.getProperty("java.home")}/../lib/tools.jar"))
     implementation("com.squareup:kotlinpoet:1.7.2")
 }
 

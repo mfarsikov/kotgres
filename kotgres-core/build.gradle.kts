@@ -35,25 +35,12 @@ tasks {
         outputDirectory = "$buildDir/javadoc"
     }
 }
+
 val dokkaJar by tasks.creating(Jar::class) {
     group = JavaBasePlugin.DOCUMENTATION_GROUP
     description = "Assembles Kotlin docs with Dokka"
     this.archiveClassifier.set("javadoc")
     from(tasks.dokka)
-}
-task("generateVersionFile") {
-    val buildInfoFile = file("$buildDir/generated/resources/META-INF/build-info.properties")
-    inputs.property("version", project.version)
-    outputs.file(buildInfoFile)
-    doLast {
-        file(buildInfoFile.parent).mkdirs()
-        buildInfoFile.writeText("version=${project.version}")
-    }
-}
-
-tasks.withType<Jar>().named("jar") {
-    dependsOn("generateVersionFile")
-    from("$buildDir/generated/resources")
 }
 
 publishing {
@@ -109,7 +96,6 @@ bintray {
         }
     }
 }
-
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     kotlinOptions {

@@ -33,7 +33,7 @@ import kotgres.kapt.model.repository.QueryMethodType
 import kotgres.kapt.model.repository.QueryParameter
 import kotgres.kapt.model.repository.Repo
 import kotgres.kapt.parser.KotlinType
-import javax.annotation.Generated
+import javax.annotation.processing.Generated
 
 
 fun generateRepository(repo: Repo): FileSpec {

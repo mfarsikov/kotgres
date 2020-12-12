@@ -1,6 +1,5 @@
 package kotgres.kapt.parser
 
-import com.sun.tools.javac.code.Symbol
 import kotgres.annotations.Column
 import kotgres.annotations.Delete
 import kotgres.annotations.First
@@ -31,8 +30,7 @@ import kotlinx.metadata.jvm.KotlinClassHeader
 import kotlinx.metadata.jvm.KotlinClassMetadata
 import javax.annotation.processing.ProcessingEnvironment
 import javax.annotation.processing.RoundEnvironment
-import javax.lang.model.element.Element
-import javax.lang.model.element.ElementKind
+import javax.lang.model.element.*
 
 class Parser(
     roundEnv: RoundEnvironment,
@@ -49,8 +47,8 @@ class Parser(
     private val cache = mutableMapOf<QualifiedName, Klass>()
 
     fun parse(element: Element): Klass {
-        element as Symbol.ClassSymbol
-        return find(element.className().toQualifiedName())
+        element as TypeElement
+        return find(element.qualifiedName.toString().toQualifiedName())
     }
 
     private fun parseInternal(element: Element): Klass {
@@ -69,7 +67,7 @@ class Parser(
 
         val kmClass = metadata.toKmClass()
 
-        element as Symbol.ClassSymbol
+        element as TypeElement
 
         if (element.getKind() == ElementKind.ENUM) {
             return Klass(
@@ -96,14 +94,14 @@ class Parser(
             val paramAnnotations: List<ParamAnnotations>
         )
 
-        val functionSignatureToAnnotations: Map<FunctionSignature, FunAnnotations> = element.members()
-            .elements
-            .map { it as Element }
-            .filterIsInstance<Symbol.MethodSymbol>()
+        element.enclosedElements.map { it.kind == ElementKind.METHOD }
+        val functionSignatureToAnnotations: Map<FunctionSignature, FunAnnotations> = element.enclosedElements
+            .filter { it.kind == ElementKind.METHOD }
             .associate {
-                val params = it.params.mapNotNull{
+                it as ExecutableElement
+                val params = it.parameters.mapNotNull {
                     ParamAnnotations(
-                        it.name.toString(),
+                        it.simpleName.toString(),
                         listOf(
                             it.getAnnotation(Limit::class.java),
                         )
@@ -138,7 +136,8 @@ class Parser(
                             name = param.name,
                             type = param.type!!.toType(),
                             isTarget = false,
-                            annotations = funAnnotations?.paramAnnotations?.find { it.name == param.name }?.annotations ?: emptyList()
+                            annotations = funAnnotations?.paramAnnotations?.find { it.name == param.name }?.annotations
+                                ?: emptyList()
                         )
                     },
                     returnType = func.returnType.toType(),
@@ -152,10 +151,11 @@ class Parser(
         val tableAnnotation: Table? = element.getAnnotation(Table::class.java)
         val repoAnnotation: PostgresRepository? = element.getAnnotation(PostgresRepository::class.java)
 
-        val fieldNameToAnnotationDetails = element.members_field.elements
-            .filterIsInstance<Symbol.VarSymbol>()
+        val fieldNameToAnnotationDetails = element
+            .enclosedElements
+            .filter { it.kind == ElementKind.FIELD }
             .associate {
-                it.name.toString() to listOfNotNull(
+                it.toString() to listOfNotNull(
                     it.getAnnotation(Column::class.java),
                     it.getAnnotation(Id::class.java),
                     it.getAnnotation(Version::class.java),
@@ -177,18 +177,17 @@ class Parser(
             },
             annotations = listOfNotNull(tableAnnotation, repoAnnotation),
             functions = functions,
-            isInterface = element.isInterface,
+            isInterface = element.kind == ElementKind.INTERFACE,
             superclassParameter = superclassParam,
         )
     }
 
     private fun find(qn: QualifiedName): Klass {
-        return cache.computeIfAbsent(qn) { simpleType ->
-            when (simpleType) {
+        return cache[qn]
+            ?: when (qn) {
                 !in elementsByName -> Klass(name = qn)
-                else -> parseInternal(elementsByName[simpleType]!!)
-            }
-        }
+                else -> parseInternal(elementsByName[qn]!!)
+            }.also { cache[qn] = it }
     }
 
     private fun KmType.toType(): Type {
@@ -203,9 +202,9 @@ class Parser(
         )
     }
 
-    private fun Symbol.MethodSymbol.toFunctionSignature() = FunctionSignature(
-        functionName = name.toString(),
-        parameters = params.map { (it.type.tsym as Symbol.ClassSymbol).className().toQualifiedName() }
+    private fun ExecutableElement.toFunctionSignature() = FunctionSignature(
+        functionName = simpleName.toString(),
+        parameters = parameters.map { it.asType().toString().toQualifiedName() }
     )
 
     private fun KmFunction.toFunctionSignature() = FunctionSignature(
@@ -241,7 +240,7 @@ private val typeDeclarationPattern = "^(([\\w\\.]*)\\.)?(\\w*)(<.*>)?".toRegex()
 fun String.toQualifiedName(): QualifiedName {
     val groups = typeDeclarationPattern.find(this)!!.groups
     val qualifiedName = QualifiedName(groups[2]?.value ?: "", groups[3]?.value!!)
-    return KotlinType.of(qualifiedName)?.qn?:qualifiedName
+    return KotlinType.of(qualifiedName)?.qn ?: qualifiedName
 }
 
 enum class KotlinType(val qn: QualifiedName, val jdbcSetterName: String?) {
@@ -251,6 +250,7 @@ enum class KotlinType(val qn: QualifiedName, val jdbcSetterName: String?) {
     DATE(QualifiedName(pkg = "java.sql", name = "Date"), "Date"),
     DOUBLE(QualifiedName(pkg = "kotlin", name = "Double"), "Double"),
     FLOAT(QualifiedName(pkg = "kotlin", name = "Float"), "Float"),
+
     //INSTANT(QualifiedName(pkg = "java.time", name = "Instant"), "Object"),
     INT(QualifiedName(pkg = "kotlin", name = "Int"), "Int"),
     LIST(QualifiedName(pkg = "kotlin.collections", name = "List"), "Object"),
@@ -286,6 +286,6 @@ enum class KotlinType(val qn: QualifiedName, val jdbcSetterName: String?) {
             QualifiedName(pkg = "java.lang", name = "String") to STRING,
             QualifiedName(pkg = "java.util", name = "List") to LIST,
 
-        )
+            )
     }
 }

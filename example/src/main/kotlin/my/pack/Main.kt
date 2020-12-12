@@ -47,7 +47,7 @@ fun main() {
     )
 
 
-    db.transaction(autoCommit = true) {
+    db.transaction {
         myClassRepository.turnOnLogsOnServerForCurrentTransaction()
         myClassRepository.saveAll(listOf(item, item.copy(id = "14")))
     }

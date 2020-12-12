@@ -21,7 +21,7 @@ import kotgres.aux.DbOperations
 import kotgres.aux.DbOperationsImpl
 import kotgres.aux.IsolationLevel
 import kotgres.kapt.model.repository.Repo
-import javax.annotation.Generated
+import javax.annotation.processing.Generated
 
 fun generateDb(dbDescription: DbDescription): FileSpec {
     return buildFile(dbDescription.pkg, dbDescription.name + ".kt") {

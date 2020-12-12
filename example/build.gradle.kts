@@ -34,7 +34,7 @@ dependencies {
     kapt(project(":kotgres-kapt"))
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.7.0")
-    testImplementation("org.testcontainers:postgresql:1.15.0-rc2")
+    testImplementation("org.testcontainers:postgresql:1.15.1")
     testImplementation("org.jetbrains.kotlin:kotlin-test:1.4.10")
 }
 

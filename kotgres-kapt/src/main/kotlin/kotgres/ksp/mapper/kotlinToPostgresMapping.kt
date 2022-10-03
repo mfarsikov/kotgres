@@ -1,7 +1,7 @@
-package kotgres.kapt.mapper
+package kotgres.ksp.mapper
 
 import kotgres.aux.PostgresType
-import kotgres.kapt.parser.KotlinType
+import kotgres.ksp.parser.KotlinType
 
 val kotlinTypeToPostgresTypeMapping = mapOf(
     KotlinType.BIG_DECIMAL to PostgresType.NUMERIC,

@@ -2,10 +2,10 @@ import com.github.mfarsikov.kewt.versioning.plugin.Incrementer.MINOR
 import com.github.mfarsikov.kewt.versioning.plugin.Incrementer.PATCH
 
 plugins {
-    kotlin("jvm") version "1.4.10" apply false
-    kotlin("plugin.serialization") version "1.4.10" apply false
+    kotlin("jvm") version "1.7.20" apply false
+    kotlin("plugin.serialization") version "1.7.20" apply false
     id("com.jfrog.bintray") version "1.8.5" apply false
-    id("com.github.mfarsikov.kewt-versioning") version "0.6.0"
+    id("com.github.mfarsikov.kewt-versioning") version "1.0.0"
 }
 
 repositories {

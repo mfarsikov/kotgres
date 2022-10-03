@@ -1,8 +1,7 @@
 package kotgres.aux
 
-
 enum class PostgresType(
-    val value: String
+    val value: String,
 ) {
     NONE(""),
     BOOLEAN("boolean"),
@@ -15,7 +14,7 @@ enum class PostgresType(
     DATE("date"),
     DOUBLE("double precision"),
     MONEY("money"),
-    NUMERIC("numeric"), //TODO has params
+    NUMERIC("numeric"), // TODO has params
     TIME("time without time zone"),
     TIMESTAMP("timestamp without time zone"),
     TIMESTAMP_WITH_TIMEZONE("timestamp with time zone"),
@@ -26,7 +25,14 @@ enum class PostgresType(
 
     companion object {
         fun of(s: String): PostgresType {
-            return values().singleOrNull { it.value == s } ?: error("Cannot find PostgresType: $s")
+            // TODO inconsistent values in 's': sometimes it is FQN, and sometimes value. should be fixed
+            return if (s.startsWith(PostgresType::class.qualifiedName!!)) {
+                val name = s.substringAfterLast(".")
+                values().singleOrNull { it.name == name } ?: error("Cannot find PostgresType: $s")
+            } else {
+                val name = s.lowercase()
+                values().singleOrNull { it.value == name } ?: error("Cannot find PostgresType: $s")
+            }
         }
     }
 }

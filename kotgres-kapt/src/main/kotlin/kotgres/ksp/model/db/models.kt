@@ -1,9 +1,9 @@
-package kotgres.kapt.model.db
+package kotgres.ksp.model.db
 
 import kotgres.aux.ColumnDefinition
-import kotgres.kapt.model.klass.Klass
-import kotgres.kapt.model.klass.Type
-import kotgres.kapt.model.repository.ObjectConstructor
+import kotgres.ksp.model.klass.Klass
+import kotgres.ksp.model.klass.Type
+import kotgres.ksp.model.repository.ObjectConstructor
 
 data class TableMapping(
     val name: String,

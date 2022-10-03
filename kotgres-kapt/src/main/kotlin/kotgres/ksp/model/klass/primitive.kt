@@ -1,4 +1,4 @@
-package kotgres.kapt.model.klass
+package kotgres.ksp.model.klass
 
 import kotgres.aux.PostgresType
 
@@ -10,6 +10,7 @@ val primitives = listOf(
     QualifiedName("kotlin","Float" ),
     QualifiedName("kotlin","Double" ),
     QualifiedName("kotlin","Boolean" ),
+    QualifiedName("kotlin","String" ),
 )
 
 val jdbcTypeMappingsForPrimitives = mapOf(

@@ -1,4 +1,4 @@
-package kotgres.kapt.generator
+package kotgres.ksp.generator
 
 import com.squareup.kotlinpoet.ClassName
 import com.squareup.kotlinpoet.FileSpec
@@ -12,39 +12,37 @@ import com.squareup.kotlinpoet.TypeName
 import com.squareup.kotlinpoet.TypeSpec
 import io.github.enjoydambience.kotlinbard.CodeBlockBuilder
 import io.github.enjoydambience.kotlinbard.TypeSpecBuilder
-import io.github.enjoydambience.kotlinbard.`for`
-import io.github.enjoydambience.kotlinbard.`if`
-import io.github.enjoydambience.kotlinbard.`while`
 import io.github.enjoydambience.kotlinbard.addClass
 import io.github.enjoydambience.kotlinbard.addCode
 import io.github.enjoydambience.kotlinbard.addFunction
 import io.github.enjoydambience.kotlinbard.buildFile
 import io.github.enjoydambience.kotlinbard.controlFlow
+import io.github.enjoydambience.kotlinbard.`for`
+import io.github.enjoydambience.kotlinbard.`if`
 import io.github.enjoydambience.kotlinbard.nullable
+import io.github.enjoydambience.kotlinbard.`while`
 import kotgres.aux.Checker
-import kotgres.kapt.model.klass.Klass
-import kotgres.kapt.model.klass.Nullability
-import kotgres.kapt.model.klass.Type
-import kotgres.kapt.model.klass.isJavaPrimitive
-import kotgres.kapt.model.klass.jdbcTypeMappingsForPrimitives
-import kotgres.kapt.model.repository.ObjectConstructor
-import kotgres.kapt.model.repository.QueryMethod
-import kotgres.kapt.model.repository.QueryMethodType
-import kotgres.kapt.model.repository.QueryParameter
-import kotgres.kapt.model.repository.Repo
-import kotgres.kapt.parser.KotlinType
-import javax.annotation.processing.Generated
+import kotgres.ksp.model.klass.Klass
+import kotgres.ksp.model.klass.Nullability
+import kotgres.ksp.model.klass.Type
+import kotgres.ksp.model.klass.isJavaPrimitive
+import kotgres.ksp.model.repository.ObjectConstructor
+import kotgres.ksp.model.repository.QueryMethod
+import kotgres.ksp.model.repository.QueryMethodType
+import kotgres.ksp.model.repository.QueryParameter
+import kotgres.ksp.model.repository.Repo
+import kotgres.ksp.parser.KotlinType
 
+// import javax.annotation.processing.Generated
 
 fun generateRepository(repo: Repo): FileSpec {
     return buildFile(repo.superKlass.name.pkg, "${repo.superKlass.name.name}Impl.kt") {
-
         addClass("${repo.superKlass.name.name}Impl") {
-            addAnnotation(Generated::class)
+            //  addAnnotation(Generated::class)
             addModifiers(KModifier.INTERNAL)
             addSuperinterface(ClassName(repo.superKlass.name.pkg, repo.superKlass.name.name))
             primaryConstructor(
-                PropertySpec.builder("connection", ClassName("java.sql", "Connection"), KModifier.PRIVATE).build()
+                PropertySpec.builder("connection", ClassName("java.sql", "Connection"), KModifier.PRIVATE).build(),
             )
 
             generateCheckFunction(repo)
@@ -65,34 +63,37 @@ private fun TypeSpecBuilder.generateQueryMethod(
     addFunction(queryMethod.name) {
         addModifiers(KModifier.OVERRIDE)
         returns(queryMethod.returnType.toTypeName())
-        addParameters(queryMethod.queryMethodParameters.map { param ->
-            ParameterSpec(
-                name = param.name,
-                type = param.type.toTypeName()
-            )
-        })
+        addParameters(
+            queryMethod.queryMethodParameters.map { param ->
+                ParameterSpec(
+                    name = param.name,
+                    type = param.type.toTypeName(),
+                )
+            },
+        )
 
         addCode {
-            if (queryMethod.orderParameterName == null)
+            if (queryMethod.orderParameterName == null) {
                 addStatement("val query = %S", queryMethod.query)
-            else
+            } else {
                 addStatement(
                     "val query = %S.replace(%S, %L.stringify())",
                     queryMethod.query,
                     "%orderBy",
-                    queryMethod.orderParameterName
+                    queryMethod.orderParameterName,
                 )
+            }
 
             controlFlow("return connection.prepareStatement(query).use") {
-
                 generateParametersSetBlock(queryMethod.queryParameters, "")
 
                 if (queryMethod.returnType.klass.name != KotlinType.UNIT.qn) {
                     controlFlow("it.executeQuery().use") {
-                        if (queryMethod.returnsCollection || queryMethod.pagination != null)
+                        if (queryMethod.returnsCollection || queryMethod.pagination != null) {
                             generateCollectionExtractor(queryMethod)
-                        else
+                        } else {
                             generateSingleElementExtractor(queryMethod)
+                        }
                     }
                 } else {
                     when {
@@ -101,10 +102,11 @@ private fun TypeSpecBuilder.generateQueryMethod(
                             `if`("rows != 1") {
                                 addStatement(
                                     "throw %M()",
-                                    MemberName("kotgres.aux.exception", "OptimisticLockFailException")
+                                    MemberName("kotgres.aux.exception", "OptimisticLockFailException"),
                                 )
                             }
                         }
+
                         queryMethod.isStatement -> addStatement("it.execute()")
                         else -> addStatement("it.executeUpdate()")
                     }
@@ -133,8 +135,8 @@ private fun CodeBlockBuilder.generateCollectionExtractor(queryMethod: QueryMetho
     if (queryMethod.pagination != null) {
         addStatement(
             "Page(%L, acc)",
-            queryMethod.pagination.parameterName
-        )//TODO use correct parameter name
+            queryMethod.pagination.parameterName,
+        ) // TODO use correct parameter name
     } else {
         addStatement("acc")
     }
@@ -149,7 +151,7 @@ private fun CodeBlockBuilder.generateSingleElementExtractor(
                 addStatement(
                     "throw %T(%S)",
                     IllegalStateException::class,
-                    "Query has returned more than one element"
+                    "Query has returned more than one element",
                 )
             }
         }
@@ -159,10 +161,11 @@ private fun CodeBlockBuilder.generateSingleElementExtractor(
             generateConstructorCall(queryMethod.objectConstructor!!)
         }
     } `else` {
-        if (queryMethod.returnType.nullability == Nullability.NULLABLE)
+        if (queryMethod.returnType.nullability == Nullability.NULLABLE) {
             addStatement("null")
-        else
+        } else {
             addStatement("throw %T()", NoSuchElementException::class)
+        }
     }
 }
 
@@ -176,7 +179,7 @@ private fun CodeBlockBuilder.generateScalarExtraction(extractor: ObjectConstruct
 
         extractor.resultSetGetterName == "Object" -> addStatement(
             "it.getObject(1, %M::class.java)",
-            MemberName(extractor.fieldType.pkg, extractor.fieldType.name)
+            MemberName(extractor.fieldType.pkg, extractor.fieldType.name),
         )
 
         extractor.isEnum -> {
@@ -192,8 +195,9 @@ private fun CodeBlockBuilder.generateScalarExtraction(extractor: ObjectConstruct
                 )
             }
         }
+
         else -> addStatement(
-            "it.get${extractor.resultSetGetterName}(1)"
+            "it.get${extractor.resultSetGetterName}(1)",
         )
     }
 }
@@ -201,7 +205,6 @@ private fun CodeBlockBuilder.generateScalarExtraction(extractor: ObjectConstruct
 fun Klass.toClassName() = ClassName(name.pkg, name.name)
 
 fun Type.toTypeName(): TypeName {
-
     var cn = klass.toClassName()
     if (nullability == Nullability.NULLABLE) cn = cn.nullable
 
@@ -228,6 +231,7 @@ private fun CodeBlockBuilder.generateConstructorCall(c: ObjectConstructor, isTop
             val trailingComma = if (isTop) "" else ","
             addStatement(")$trailingComma")
         }
+
         is ObjectConstructor.Extractor -> {
             if (c.isJson) {
                 addStatement(
@@ -242,7 +246,7 @@ private fun CodeBlockBuilder.generateConstructorCall(c: ObjectConstructor, isTop
                     "%L = it.getObject(%S, %M::class.java),",
                     c.fieldName,
                     c.columnName,
-                    MemberName(c.fieldType.pkg, c.fieldType.name)
+                    MemberName(c.fieldType.pkg, c.fieldType.name),
                 )
             } else if (c.isEnum) {
                 if (c.isNullable) {
@@ -283,15 +287,13 @@ private fun TypeSpecBuilder.generateBatchQueryMethod(queryMethod: QueryMethod) {
 
         val queryMethodParameter = queryMethod.queryMethodParameters.single()
         addParameter(
-            ParameterSpec(queryMethodParameter.name, queryMethodParameter.type.toTypeName())
+            ParameterSpec(queryMethodParameter.name, queryMethodParameter.type.toTypeName()),
         )
-
 
         addCode {
             addStatement("val query = %S", queryMethod.query)
             controlFlow("connection.prepareStatement(query).use") {
                 `for`("item in ${queryMethodParameter.name}") {
-
                     generateParametersSetBlock(queryMethod.queryParameters, "item.")
 
                     addStatement("it.addBatch()")
@@ -301,7 +303,7 @@ private fun TypeSpecBuilder.generateBatchQueryMethod(queryMethod: QueryMethod) {
                     `if`("rows.sum() != ${queryMethodParameter.name}.size") {
                         addStatement(
                             "throw %M()",
-                            MemberName("kotgres.aux.exception", "OptimisticLockFailException")
+                            MemberName("kotgres.aux.exception", "OptimisticLockFailException"),
                         )
                     }
                 } else {
@@ -314,7 +316,7 @@ private fun TypeSpecBuilder.generateBatchQueryMethod(queryMethod: QueryMethod) {
 
 private fun CodeBlockBuilder.generateParametersSetBlock(
     queryParameters: List<QueryParameter>,
-    itemPrefix: String
+    itemPrefix: String,
 ) {
     for (param in queryParameters) {
         when {
@@ -334,21 +336,39 @@ private fun CodeBlockBuilder.generateParametersSetBlock(
                 param.path,
             )
 
+            param.isEnum && param.kotlinType.nullability == Nullability.NULLABLE -> `if`(
+                "$itemPrefix%L == null",
+                param.path,
+            ) {
+                addStatement(
+                    "it.setNull(%L, %M.%L)",
+                    param.positionInQuery,
+                    MemberName("java.sql", "Types"),
+                    "NULL",
+                )
+            } `else` {
+                addStatement(
+                    "it.setString(%L, $itemPrefix%L%L.name)",
+                    param.positionInQuery,
+                    param.path,
+                    if (param.kotlinType.nullability == Nullability.NULLABLE) "!!" else "",
+                )
+            }
+
             param.isEnum -> addStatement(
                 "it.setString(%L, $itemPrefix%L%L.name)",
                 param.positionInQuery,
                 param.path,
-                if (param.kotlinType.nullability == Nullability.NULLABLE) "?" else ""
+                if (param.kotlinType.nullability == Nullability.NULLABLE) "!!" else "",
             )
 
-            param.kotlinType.klass.isJavaPrimitive() && param.kotlinType.nullability == Nullability.NULLABLE ->
+            param.kotlinType.nullability == Nullability.NULLABLE ->
                 `if`("$itemPrefix%L == null", param.path) {
                     addStatement(
                         "it.setNull(%L, %M.%L)",
                         param.positionInQuery,
                         MemberName("java.sql", "Types"),
-                        jdbcTypeMappingsForPrimitives[param.postgresType]
-                            ?: error("no java.sql.Types mapping for ${param.postgresType}")
+                        "NULL",
                     )
                 } `else` {
                     addStatement(

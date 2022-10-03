@@ -1,4 +1,4 @@
-package kotgres.kapt.generator
+package kotgres.ksp.generator
 
 import com.squareup.kotlinpoet.ClassName
 import com.squareup.kotlinpoet.FileSpec
@@ -9,34 +9,33 @@ import com.squareup.kotlinpoet.ParameterSpec
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.PropertySpec
 import com.squareup.kotlinpoet.TypeVariableName
-import io.github.enjoydambience.kotlinbard.`if`
 import io.github.enjoydambience.kotlinbard.addClass
 import io.github.enjoydambience.kotlinbard.addCode
 import io.github.enjoydambience.kotlinbard.addFunction
 import io.github.enjoydambience.kotlinbard.buildFile
 import io.github.enjoydambience.kotlinbard.codeBlock
 import io.github.enjoydambience.kotlinbard.controlFlow
+import io.github.enjoydambience.kotlinbard.`if`
+import java.util.Locale
 import kotgres.aux.Checkable
 import kotgres.aux.DbOperations
 import kotgres.aux.DbOperationsImpl
 import kotgres.aux.IsolationLevel
-import kotgres.kapt.model.repository.Repo
-import javax.annotation.processing.Generated
+import kotgres.ksp.model.repository.Repo
+//import javax.annotation.processing.Generated
 
 fun generateDb(dbDescription: DbDescription): FileSpec {
     return buildFile(dbDescription.pkg, dbDescription.name + ".kt") {
-
         addClass(dbDescription.name) {
-            addAnnotation(Generated::class)
+            //addAnnotation(Generated::class)
             if (dbDescription.spring) {
                 addAnnotation(ClassName("org.springframework.stereotype", "Component"))
             }
             addSuperinterface(Checkable::class)
             primaryConstructor(
-                PropertySpec.builder("ds", ClassName("javax.sql", "DataSource"), KModifier.PRIVATE).build()
+                PropertySpec.builder("ds", ClassName("javax.sql", "DataSource"), KModifier.PRIVATE).build(),
             )
             addFunction("transaction") {
-
                 val repoHolder = ClassName(dbDescription.pkg, "${dbDescription.name}RepositoryHolder")
                 addParameter(ParameterSpec.builder("readOnly", Boolean::class).defaultValue("false").build())
                 ClassName.bestGuess(IsolationLevel::class.qualifiedName!!)
@@ -44,13 +43,14 @@ fun generateDb(dbDescription: DbDescription): FileSpec {
                     MemberName(ClassName.bestGuess(IsolationLevel::class.qualifiedName!!), "READ_COMMITTED")
                 addParameter(
                     ParameterSpec.builder("isolationLevel", IsolationLevel::class).defaultValue("%M", readCommitted)
-                        .build()
+                        .build(),
                 )
                 addParameter(
-                    "block", LambdaTypeName.get(
+                    "block",
+                    LambdaTypeName.get(
                         receiver = repoHolder,
-                        returnType = TypeVariableName("R")
-                    )
+                        returnType = TypeVariableName("R"),
+                    ),
                 )
                 addTypeVariable(TypeVariableName("R"))
                 returns(TypeVariableName("R"))
@@ -94,25 +94,24 @@ fun generateDb(dbDescription: DbDescription): FileSpec {
         }
 
         addClass("${dbDescription.name}RepositoryHolder") {
-            addAnnotation(Generated::class)
+       //     addAnnotation(Generated::class)
             primaryConstructor(
-                PropertySpec.builder("connection", ClassName("java.sql", "Connection"), KModifier.PRIVATE).build()
+                PropertySpec.builder("connection", ClassName("java.sql", "Connection"), KModifier.PRIVATE).build(),
             )
             addSuperinterface(DbOperations::class, codeBlock("%T(connection)", DbOperationsImpl::class))
             dbDescription.repositories.forEach { repo ->
                 addProperty(
                     PropertySpec.builder(
-                        repo.superKlass.name.name.decapitalize(),
-                        ClassName(repo.superKlass.name.pkg, repo.superKlass.name.name)
+                        repo.superKlass.name.name.replaceFirstChar { it.lowercase(Locale.getDefault()) },
+                        ClassName(repo.superKlass.name.pkg, repo.superKlass.name.name),
                     )
                         .initializer(
                             "%T(connection)",
-                            ClassName(repo.superKlass.name.pkg, repo.superKlass.name.name + "Impl")
+                            ClassName(repo.superKlass.name.pkg, repo.superKlass.name.name + "Impl"),
                         )
-                        .build()
+                        .build(),
                 )
             }
-
         }
     }
 }

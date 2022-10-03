@@ -1,2 +1,0 @@
-package kotgres.kapt.mapper
-

@@ -11,13 +11,14 @@ object Checker {
                     SELECT FROM information_schema.tables 
                         WHERE table_name = ?
                  )
-            """.trimIndent()
+            """.trimIndent(),
         ).use { stmt ->
             stmt.setString(1, tableName)
             stmt.executeQuery()
-        }.use { rs ->
-            rs.next()
-            rs.getBoolean(1)
+                .use { rs ->
+                    rs.next()
+                    rs.getBoolean(1)
+                }
         }
 
         if (!tableExists) return "table $tableName does not exist"
@@ -37,27 +38,25 @@ object Checker {
                               and ccu.constraint_name = tc.constraint_name
                               and tc.constraint_type = 'PRIMARY KEY'
                 WHERE c.table_name = ?
-            """.trimIndent()
+            """.trimIndent(),
         )
             .use { stmt ->
                 stmt.setString(1, tableName)
                 stmt.executeQuery()
+                    .use { rs ->
+                        val dbColumns = mutableSetOf<ColumnDefinition>()
+                        while (rs.next()) {
+                            dbColumns += ColumnDefinition(
+                                name = rs.getString("column_name"),
+                                nullable = rs.getBoolean("is_nullable"),
+                                type = PostgresType.of(rs.getString("data_type")),
+                                isId = rs.getBoolean("primary_key"),
+                                isVersion = false,
+                            )
+                        }
+                        dbColumns
+                    }
             }
-            .use { rs ->
-                val dbColumns = mutableSetOf<ColumnDefinition>()
-                while (rs.next()) {
-
-                    dbColumns += ColumnDefinition(
-                        name = rs.getString("column_name"),
-                        nullable = rs.getBoolean("is_nullable"),
-                        type = PostgresType.of(rs.getString("data_type")),
-                        isId = rs.getBoolean("primary_key"),
-                        isVersion = false,
-                    )
-                }
-                dbColumns
-            }
-
 
         val dbColumnsByName = dbColumns.associateBy { it.name }
         val expectedColumnByName = expectedColumns.associateBy { it.name }
@@ -65,13 +64,13 @@ object Checker {
         val missingErrors = message(
             "Missing columns",
             tableName,
-            expectedColumns.filter { it.name !in dbColumnsByName }
+            expectedColumns.filter { it.name !in dbColumnsByName },
         )
 
         val extraErrors = message(
             "Extra columns",
             tableName,
-            dbColumns.filter { it.name !in expectedColumnByName }
+            dbColumns.filter { it.name !in expectedColumnByName },
         )
 
         val invalidNullability = message(
@@ -80,13 +79,17 @@ object Checker {
             dbColumns.filter {
                 val expectedCol = expectedColumnByName[it.name]
                 if (expectedCol != null) expectedCol.nullable != it.nullable else false
-            }
+            },
         )
 
-        val invalidType = message("Invalid type", tableName, dbColumns.filter {
-            val expectedCol = expectedColumnByName[it.name]
-            if (expectedCol != null) expectedCol.type != it.type else false
-        })
+        val invalidType = message(
+            "Invalid type",
+            tableName,
+            dbColumns.filter {
+                val expectedCol = expectedColumnByName[it.name]
+                if (expectedCol != null) expectedCol.type != it.type else false
+            },
+        )
 
         val extraKeys = message(
             "Extra keys",
@@ -95,7 +98,8 @@ object Checker {
                 .filter {
                     val expectedCol = expectedColumnByName[it.name]
                     if (expectedCol != null) expectedCol.isId != it.isId else false
-                })
+                },
+        )
 
         val missingKeys = message(
             "Missing keys",
@@ -104,9 +108,17 @@ object Checker {
                 .filter {
                     val dbCol = dbColumnsByName[it.name]
                     if (dbCol != null) dbCol.isId != it.isId else false
-                })
+                },
+        )
 
-        return listOfNotNull(missingErrors, extraErrors, invalidNullability, invalidType, extraKeys, missingKeys).joinToString("; ")
+        return listOfNotNull(
+            missingErrors,
+            extraErrors,
+            invalidNullability,
+            invalidType,
+            extraKeys,
+            missingKeys,
+        ).joinToString("; ")
             .takeIf { it.isNotEmpty() }
     }
 

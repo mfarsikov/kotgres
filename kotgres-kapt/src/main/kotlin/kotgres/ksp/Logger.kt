@@ -1,4 +1,4 @@
-package kotgres.kapt
+package kotgres.ksp
 
 import java.io.PrintWriter
 import java.io.StringWriter

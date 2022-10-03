@@ -460,6 +460,14 @@ class MyClassRepositoryTest {
     }
 
     @Test
+    fun `where name is something`() {
+        db.transaction { myClassRepository.save(item) }
+        val fromDb = db.transaction { myClassRepository.findFirstByName(item.name) }
+
+        assert(fromDb == item)
+    }
+
+    @Test
     fun `find first does not fail on multiple results`() {
         val noNameItem1 = item.copy(name = null)
         val noNameItem2 = item.copy(id = "14", name = null)

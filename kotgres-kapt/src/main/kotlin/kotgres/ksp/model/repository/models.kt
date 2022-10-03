@@ -1,11 +1,12 @@
-package kotgres.kapt.model.repository
+package kotgres.ksp.model.repository
 
 import kotgres.aux.PostgresType
-import kotgres.kapt.mapper.Pagination
-import kotgres.kapt.model.db.TableMapping
-import kotgres.kapt.model.klass.Klass
-import kotgres.kapt.model.klass.QualifiedName
-import kotgres.kapt.model.klass.Type
+import kotgres.ksp.common.Pagination
+import kotgres.ksp.model.db.TableMapping
+import kotgres.ksp.model.klass.Klass
+import kotgres.ksp.model.klass.QualifiedName
+import kotgres.ksp.model.klass.Type
+import kotgres.ksp.parser.KotlinType
 
 data class Repo(
     val superKlass: Klass,
@@ -19,7 +20,7 @@ data class QueryMethod(
     val query: String,
     val queryMethodParameters: List<QueryMethodParameter>,
     val queryParameters: List<QueryParameter>,
-    val returnType: Type, //TODO remove?
+    val returnType: Type, // TODO remove?
     val trueReturnType: Type,
     val returnsCollection: Boolean,
     val objectConstructor: ObjectConstructor?,
@@ -46,6 +47,7 @@ data class QueryParameter(
     val isJson: Boolean,
     val isEnum: Boolean,
     val convertToArray: Boolean,
+    val isINClause: Boolean,
     val postgresType: PostgresType,
 )
 
@@ -57,13 +59,14 @@ sealed class ObjectConstructor {
     ) : ObjectConstructor()
 
     data class Extractor(
-        val resultSetGetterName: String,
+        val resultSetGetterName: String, // TODO remove in favor of kotlinType?
         val columnName: String,
         val fieldName: String?,
-        val fieldType: QualifiedName,
+        val fieldType: QualifiedName, // TODO remove in favor of kotlinType?
         val isJson: Boolean,
         val isEnum: Boolean,
         val isPrimitive: Boolean,
         val isNullable: Boolean,
+        val kotlinType: KotlinType?,
     ) : ObjectConstructor()
 }
